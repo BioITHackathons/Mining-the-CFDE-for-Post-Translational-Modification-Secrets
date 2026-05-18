@@ -923,6 +923,7 @@ function assembleData(uniprot, glygen, accession, searchTerm) {
     diseases: [],
     pathways: [],
     ptmAnnotation: [],
+    expressionDisease: [],
     sources: { uniprot: !!uniprot, glygen: !!glygen }
   };
 
@@ -976,11 +977,12 @@ function assembleData(uniprot, glygen, accession, searchTerm) {
     data.length = data.length || glygen.sequence?.length || 0;
     if (!data.funcText && glygen.refseq?.summary) data.funcText = glygen.refseq.summary;
 
-    // Raw glycosylation (keep full detail for GlyGen tab)
+    // Raw GlyGen data (keep full detail)
     data.glycosylation = glygen.glycosylation || [];
     data.phosphorylation = glygen.phosphorylation || [];
     data.snv = glygen.snv || [];
     data.ptmAnnotation = glygen.ptm_annotation || [];
+    data.expressionDisease = glygen.expression_disease || [];
 
     // Phosphorylation -> unified PTMs
     for (const p of (glygen.phosphorylation || [])) {
@@ -1342,51 +1344,122 @@ function renderImpactPanel() {
   const d = currentData;
   const snvs = d.snv || [];
   const disSNVs = snvs.filter(s => s.disease && s.disease.length > 0 && s.start_pos);
-  const ptmPositions = new Set([
-    ...(d.glycosylation || []).map(g => g.start_pos),
-    ...(d.phosphorylation || []).map(p => p.start_pos)
-  ].filter(Boolean));
+  const glyc = d.glycosylation || [];
+  const phos = d.phosphorylation || [];
+  const ptmAnnot = d.ptmAnnotation || [];
+  const exprDis = d.expressionDisease || [];
 
-  // Find disease SNVs near PTM sites (within 5 residues)
+  const glycPositions = new Set(glyc.map(g => g.start_pos).filter(Boolean));
+  const phosPositions = new Set(phos.map(p => p.start_pos).filter(Boolean));
+  const allPTMPositions = new Set([...glycPositions, ...phosPositions]);
+
+  // --- 1. Disease SNVs near PTM sites ---
   const impactSNVs = [];
   for (const s of disSNVs) {
-    let nearestPTM = null;
-    let nearestDist = Infinity;
-    for (const pos of ptmPositions) {
+    let nearestPTM = null, nearestDist = Infinity;
+    for (const pos of allPTMPositions) {
       const dist = Math.abs(s.start_pos - pos);
-      if (dist <= 5 && dist < nearestDist) {
-        nearestDist = dist;
-        nearestPTM = pos;
-      }
+      if (dist <= 5 && dist < nearestDist) { nearestDist = dist; nearestPTM = pos; }
     }
     if (nearestPTM !== null) {
-      // Find what PTM is at that position
-      const glycAtPos = (d.glycosylation || []).find(g => g.start_pos === nearestPTM);
-      const phosAtPos = (d.phosphorylation || []).find(p => p.start_pos === nearestPTM);
+      const glycAtPos = glyc.find(g => g.start_pos === nearestPTM);
+      const phosAtPos = phos.find(p => p.start_pos === nearestPTM);
       const ptmType = glycAtPos ? `${glycAtPos.type || 'Glycosylation'} (${glycAtPos.subtype || ''})` : phosAtPos ? `Phospho${phosAtPos.residue || ''}` : 'PTM';
       const ptmLabel = glycAtPos?.site_lbl || phosAtPos?.site_lbl || `pos ${nearestPTM}`;
-      impactSNVs.push({
-        snv: s,
-        ptmPos: nearestPTM,
-        ptmType,
-        ptmLabel,
-        distance: nearestDist,
-        diseases: s.disease.map(dd => dd.recommended_name?.name || dd.disease_id || '').filter(Boolean)
-      });
+      impactSNVs.push({ snv: s, ptmPos: nearestPTM, ptmType, ptmLabel, distance: nearestDist,
+        diseases: s.disease.map(dd => dd.recommended_name?.name || dd.disease_id || '').filter(Boolean) });
     }
   }
 
-  if (impactSNVs.length === 0 && d.diseases.length === 0) {
+  // --- 2. PTM competition sites (same position has both glyco + phospho) ---
+  const competitionSites = [];
+  for (const pos of glycPositions) {
+    if (phosPositions.has(pos)) {
+      const gEntries = glyc.filter(g => g.start_pos === pos);
+      const pEntries = phos.filter(p => p.start_pos === pos);
+      competitionSites.push({ pos, glycEntries: gEntries, phosEntries: pEntries,
+        label: gEntries[0]?.site_lbl || pEntries[0]?.site_lbl || `pos ${pos}` });
+    }
+  }
+
+  // --- 3. Disease-context keywords from PTM annotations ---
+  const diseaseAnnotations = [];
+  const normalAnnotations = [];
+  const DIS_KW = /\b(disease|alzheimer|parkinson|huntington|ALS|amyloid|patholog|aberrant|hyper[\s-]?phospho|neurodegenerat|cancer|tumor|patient|PHF|paired helical|tau[\s-]?opathy|aggregate|toxic|apoptosis|cell death|neuronal death|dementia)\b/i;
+  for (const a of ptmAnnot) {
+    if (DIS_KW.test(a.annotation)) {
+      diseaseAnnotations.push(a);
+    } else {
+      normalAnnotations.push(a);
+    }
+  }
+
+  // --- 4. Expression in disease from BioXpress ---
+  const sigExpr = exprDis.filter(e => e.significant === 'Yes');
+
+  // --- Build HTML ---
+  if (impactSNVs.length === 0 && competitionSites.length === 0 && diseaseAnnotations.length === 0 && sigExpr.length === 0 && d.diseases.length === 0) {
     el.innerHTML = '';
     return;
   }
 
-  let html = '<div class="card"><div class="card-header"><h3>Disease-PTM Impact Analysis</h3>';
-  html += `<span style="font-size:11px;color:var(--text2)">${impactSNVs.length} disease variant${impactSNVs.length !== 1 ? 's' : ''} near PTM sites</span></div>`;
+  let html = '<div class="card">';
+  html += '<div class="card-header"><h3>Disease vs. Normal PTM Context</h3>';
+  html += `<span style="font-size:11px;color:var(--text2)">What we know about PTMs in disease for this protein</span></div>`;
   html += '<div class="card-body">';
 
+  html += '<p style="font-size:12px;color:var(--text2);margin-bottom:14px;line-height:1.6">';
+  html += '<strong>Important:</strong> Current databases (GlyGen, UniProt, iPTMnet) report <em>known PTM sites</em> on a protein, but do not label individual sites as "healthy" vs "disease." ';
+  html += 'PTM sites generally exist in both states. What changes in disease is typically the <em>level</em> of modification (e.g., tau hyperphosphorylation in Alzheimer\'s), ';
+  html += '<em>loss</em> of modification due to mutations, or <em>competition</em> between modification types (e.g., O-GlcNAc vs. phosphorylation at the same site). ';
+  html += 'Below we surface all available disease-relevant PTM signals from the data.</p>';
+
+  // --- Section: PTM annotations with disease context ---
+  if (diseaseAnnotations.length > 0 || normalAnnotations.length > 0) {
+    html += '<div style="margin-bottom:16px">';
+    html += `<h4 style="font-size:13px;font-weight:600;margin-bottom:8px;display:flex;align-items:center;gap:8px">PTM Annotations <span style="font-size:11px;font-weight:400;color:var(--text2)">(curated from UniProtKB)</span></h4>`;
+    if (diseaseAnnotations.length > 0) {
+      html += `<div style="font-size:11px;font-weight:600;color:var(--orange);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">Disease-Relevant (${diseaseAnnotations.length})</div>`;
+      for (const a of diseaseAnnotations) {
+        // Highlight disease keywords
+        const highlighted = a.annotation.replace(DIS_KW, '<mark style="background:rgba(245,158,11,.2);color:var(--orange);padding:0 2px;border-radius:2px">$&</mark>');
+        html += `<div class="ptm-annot" style="border-left-color:var(--orange)">${highlighted}<div style="margin-top:4px">${renderEvPills(a.evidence)}</div></div>`;
+      }
+    }
+    if (normalAnnotations.length > 0) {
+      html += `<div style="font-size:11px;font-weight:600;color:var(--green);margin-bottom:4px;margin-top:10px;text-transform:uppercase;letter-spacing:.5px">Constitutive / Normal Biology (${normalAnnotations.length})</div>`;
+      for (const a of normalAnnotations) {
+        html += `<div class="ptm-annot" style="border-left-color:var(--green)">${a.annotation}<div style="margin-top:4px">${renderEvPills(a.evidence)}</div></div>`;
+      }
+    }
+    html += '</div>';
+  }
+
+  // --- Section: Competition sites ---
+  if (competitionSites.length > 0) {
+    html += '<div style="margin-bottom:16px">';
+    html += `<h4 style="font-size:13px;font-weight:600;margin-bottom:8px;display:flex;align-items:center;gap:8px">PTM Competition Sites <span style="font-size:11px;font-weight:400;color:var(--text2)">${competitionSites.length} site(s) with both glycosylation and phosphorylation</span></h4>`;
+    html += '<p style="font-size:12px;color:var(--text2);margin-bottom:8px">These residues have both glycosylation and phosphorylation reported. In disease, the balance between competing modifications can shift (e.g., reduced O-GlcNAc may permit hyperphosphorylation on tau).</p>';
+    html += '<div class="table-wrap"><table><thead><tr><th>Position</th><th>Glycosylation</th><th>Phosphorylation</th><th>Disease Relevance</th></tr></thead><tbody>';
+    for (const cs of competitionSites.sort((a, b) => a.pos - b.pos)) {
+      const glycTypes = [...new Set(cs.glycEntries.map(g => g.subtype || g.type || 'Glycosylation'))].join(', ');
+      const phosComment = cs.phosEntries.map(p => p.comment || '').filter(Boolean).join('; ') || '-';
+      // Check if any nearby disease SNV
+      const nearDisSNV = disSNVs.find(s => Math.abs(s.start_pos - cs.pos) <= 3);
+      html += `<tr>
+        <td><strong>${cs.label}</strong></td>
+        <td><span class="ptm-badge" style="background:rgba(78,205,196,.12);color:var(--glyco)">${glycTypes}</span></td>
+        <td><span class="ptm-badge" style="background:rgba(255,107,107,.12);color:var(--phospho)">Phospho</span> <span style="font-size:11px;color:var(--text2)">${phosComment}</span></td>
+        <td>${nearDisSNV ? `<span style="color:var(--red);font-weight:600">Disease SNV nearby (${nearDisSNV.site_lbl || nearDisSNV.start_pos})</span>` : '<span style="color:var(--text2)">Competition site</span>'}</td>
+      </tr>`;
+    }
+    html += '</tbody></table></div></div>';
+  }
+
+  // --- Section: Disease SNVs at PTM sites ---
   if (impactSNVs.length > 0) {
-    html += `<p style="font-size:12px;color:var(--text2);margin-bottom:12px">Disease-associated mutations within 5 residues of a glycosylation or phosphorylation site. These may disrupt post-translational modification and contribute to disease.</p>`;
+    html += '<div style="margin-bottom:16px">';
+    html += `<h4 style="font-size:13px;font-weight:600;margin-bottom:8px">Disease Variants Near PTM Sites <span style="font-size:11px;font-weight:400;color:var(--text2)">${impactSNVs.length} variant(s) within 5aa of a PTM</span></h4>`;
     html += '<div class="table-wrap"><table><thead><tr><th>SNV Position</th><th>Mutation</th><th>Distance</th><th>Nearby PTM</th><th>PTM Type</th><th>Diseases</th></tr></thead><tbody>';
     for (const imp of impactSNVs.sort((a, b) => a.distance - b.distance)) {
       const s = imp.snv;
@@ -1399,9 +1472,25 @@ function renderImpactPanel() {
         <td>${imp.diseases.map(dn => `<span class="disease-chip" style="${NEURO_RE.test(dn) ? 'background:rgba(245,158,11,.12);border-color:rgba(245,158,11,.3);color:var(--orange)' : ''}">${dn}</span>`).join(' ')}</td>
       </tr>`;
     }
-    html += '</tbody></table></div>';
-  } else if (d.diseases.length > 0) {
-    html += `<p style="font-size:12px;color:var(--text2)">This protein is associated with ${d.diseases.length} disease(s) but no disease-associated SNVs were found within 5 residues of known PTM sites. The disease associations are shown in the panel above and the Diseases tab below.</p>`;
+    html += '</tbody></table></div></div>';
+  }
+
+  // --- Section: Expression changes in disease ---
+  if (sigExpr.length > 0) {
+    html += '<div style="margin-bottom:16px">';
+    html += `<h4 style="font-size:13px;font-weight:600;margin-bottom:8px">Expression Changes in Disease <span style="font-size:11px;font-weight:400;color:var(--text2)">from BioXpress (${sigExpr.length} significant)</span></h4>`;
+    html += '<p style="font-size:12px;color:var(--text2);margin-bottom:8px">Significant changes in this protein\'s expression in disease tissues. Up/down-regulation can affect the overall PTM landscape.</p>';
+    html += '<div style="display:flex;flex-wrap:wrap;gap:6px">';
+    for (const e of sigExpr) {
+      const isUp = e.trend === 'up';
+      html += `<span class="disease-chip" style="background:${isUp ? 'rgba(239,68,68,.1);border-color:rgba(239,68,68,.25);color:var(--red)' : 'rgba(74,222,128,.1);border-color:rgba(74,222,128,.25);color:var(--green)'}">${isUp ? '&#9650;' : '&#9660;'} ${e.name?.replace(/\s*\[.*?\]\s*/g, '') || ''}</span>`;
+    }
+    html += '</div></div>';
+  }
+
+  // Summary note when nothing disease-specific found
+  if (impactSNVs.length === 0 && competitionSites.length === 0 && diseaseAnnotations.length === 0 && sigExpr.length === 0 && d.diseases.length > 0) {
+    html += `<p style="font-size:12px;color:var(--text2)">This protein is associated with ${d.diseases.length} disease(s) but no disease-specific PTM signals (SNVs at PTM sites, competition sites, or disease-context annotations) were found in the current data. The disease links are shown above.</p>`;
   }
 
   html += '</div></div>';
