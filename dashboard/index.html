@@ -239,6 +239,57 @@ tr:hover td { background: rgba(108,138,255,.04); }
 .export-btns { display: flex; gap: 6px; }
 
 .hidden { display: none !important; }
+
+/* ---- Mode toggle ---- */
+.mode-toggle { display: flex; border-radius: var(--radius); overflow: hidden; border: 1px solid var(--border); margin-bottom: 12px; }
+.mode-btn {
+  flex: 1; padding: 7px 0; text-align: center; font-size: 12px; font-weight: 600;
+  cursor: pointer; background: var(--surface2); color: var(--text2); transition: all .2s;
+  border: none; outline: none;
+}
+.mode-btn.active { background: var(--accent2); color: #fff; }
+.mode-btn:hover:not(.active) { color: var(--text); }
+.mode-content { display: none; }
+.mode-content.active { display: block; }
+
+/* ---- Disease Explorer ---- */
+.dis-preset-btn {
+  padding: 4px 10px; background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 14px; color: var(--text); font-size: 11px; cursor: pointer; transition: all .2s;
+  display: inline-flex; align-items: center; gap: 4px;
+}
+.dis-preset-btn:hover { border-color: var(--orange); color: var(--orange); }
+.dis-preset-btn.active { background: rgba(245,158,11,.2); border-color: var(--orange); color: var(--orange); }
+.dis-preset-btn .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--orange); }
+
+.prot-row {
+  display: flex; align-items: center; gap: 10px; padding: 8px 12px;
+  background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius);
+  margin-bottom: 6px; cursor: pointer; transition: all .15s;
+}
+.prot-row:hover { border-color: var(--accent); }
+.prot-row.selected { border-color: var(--accent); background: rgba(108,138,255,.08); }
+.prot-row .gene { font-weight: 600; font-size: 13px; min-width: 70px; }
+.prot-row .ac { font-size: 12px; color: var(--text2); min-width: 70px; }
+.prot-row .name { font-size: 12px; color: var(--text2); flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.prot-row .glyco-tag { font-size: 10px; padding: 1px 6px; border-radius: 8px; background: rgba(78,205,196,.12); color: var(--glyco); }
+
+.bar-chart-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.bar-label { font-size: 12px; min-width: 100px; text-align: right; color: var(--text2); }
+.bar-track { flex: 1; height: 18px; background: var(--surface2); border-radius: 4px; overflow: hidden; position: relative; }
+.bar-fill { height: 100%; border-radius: 4px; transition: width .4s; display: flex; align-items: center; justify-content: flex-end; padding-right: 6px; font-size: 10px; font-weight: 600; color: #fff; }
+.bar-val { font-size: 12px; min-width: 30px; color: var(--text2); }
+
+.impact-card {
+  background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 14px; margin-bottom: 8px;
+}
+.impact-card .impact-title { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+.impact-card .impact-detail { font-size: 12px; color: var(--text2); line-height: 1.6; }
+.impact-card .impact-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+
+.progress-bar { width: 100%; height: 4px; background: var(--surface2); border-radius: 2px; margin: 8px 0; overflow: hidden; }
+.progress-fill { height: 100%; background: var(--accent); border-radius: 2px; transition: width .3s; }
 </style>
 </head>
 <body>
@@ -257,25 +308,51 @@ tr:hover td { background: rgba(108,138,255,.04); }
 <div class="app">
   <!-- ======== SIDEBAR ======== -->
   <div class="sidebar">
-    <div class="section">
-      <div class="section-title">Search</div>
-      <div class="form-row">
-        <label>Protein (UniProt accession or gene name)</label>
-        <input type="text" id="searchInput" placeholder="e.g. P05067, MAPT, SNCA, APP" />
+    <!-- Mode toggle -->
+    <div class="section" style="padding-bottom:10px">
+      <div class="mode-toggle">
+        <button class="mode-btn active" onclick="setMode('protein')" id="modeProtein">Protein Search</button>
+        <button class="mode-btn" onclick="setMode('disease')" id="modeDisease">Disease Explorer</button>
       </div>
-      <div class="form-row">
-        <label>Organism</label>
-        <select id="orgSelect">
-          <option value="9606" selected>Human (Homo sapiens)</option>
-          <option value="10090">Mouse</option>
-          <option value="10116">Rat</option>
-        </select>
+
+      <!-- === PROTEIN MODE === -->
+      <div class="mode-content active" id="proteinMode">
+        <div class="form-row">
+          <label>Protein (UniProt accession or gene name)</label>
+          <input type="text" id="searchInput" placeholder="e.g. P05067, MAPT, SNCA, APP" />
+        </div>
+        <div class="form-row">
+          <label>Organism</label>
+          <select id="orgSelect">
+            <option value="9606" selected>Human (Homo sapiens)</option>
+            <option value="10090">Mouse</option>
+            <option value="10116">Rat</option>
+          </select>
+        </div>
+        <button class="btn btn-primary" id="searchBtn" onclick="doSearch()">Search Protein</button>
       </div>
-      <button class="btn btn-primary" id="searchBtn" onclick="doSearch()">Search</button>
+
+      <!-- === DISEASE MODE === -->
+      <div class="mode-content" id="diseaseMode">
+        <div class="form-row">
+          <label>Disease (DOID or name)</label>
+          <input type="text" id="diseaseInput" placeholder="e.g. Alzheimer, DOID:10652" />
+        </div>
+        <div class="form-row">
+          <label>Max proteins to analyze</label>
+          <select id="disMaxProteins">
+            <option value="10">Top 10 glycoproteins</option>
+            <option value="20" selected>Top 20 glycoproteins</option>
+            <option value="50">Top 50 glycoproteins</option>
+          </select>
+        </div>
+        <button class="btn btn-primary" id="disSearchBtn" onclick="doDiseaseSearch()" style="background:var(--orange)">Explore Disease PTMs</button>
+      </div>
     </div>
 
-    <div class="section">
-      <div class="section-title">Neurodegenerative Disease Proteins</div>
+    <!-- Presets: shown in protein mode -->
+    <div class="section mode-content active" id="proteinPresets">
+      <div class="section-title">Quick-Pick Proteins</div>
       <label style="margin-bottom:5px">Alzheimer's Disease</label>
       <div class="preset-grid" style="margin-bottom:10px">
         <button class="preset-btn" onclick="quickSearch('P05067')">APP</button>
@@ -301,6 +378,24 @@ tr:hover td { background: rgba(108,138,255,.04); }
         <button class="preset-btn" onclick="quickSearch('P42858')">HTT</button>
         <button class="preset-btn" onclick="quickSearch('P04156')">PRNP</button>
       </div>
+    </div>
+
+    <!-- Presets: shown in disease mode -->
+    <div class="section mode-content" id="diseasePresets">
+      <div class="section-title">Neurodegenerative Diseases</div>
+      <div class="preset-grid" style="margin-bottom:8px">
+        <button class="dis-preset-btn" onclick="quickDisease('doid.10652','Alzheimer')"><span class="dot"></span>Alzheimer's</button>
+        <button class="dis-preset-btn" onclick="quickDisease('doid.14330','Parkinson')"><span class="dot"></span>Parkinson's</button>
+        <button class="dis-preset-btn" onclick="quickDisease('doid.332','ALS')"><span class="dot"></span>ALS</button>
+        <button class="dis-preset-btn" onclick="quickDisease('doid.12858','Huntington')"><span class="dot"></span>Huntington's</button>
+        <button class="dis-preset-btn" onclick="quickDisease('doid.9255','FTD')"><span class="dot"></span>Frontotemporal Dementia</button>
+        <button class="dis-preset-btn" onclick="quickDisease('doid.11949','Creutzfeldt-Jakob')"><span class="dot"></span>Prion Disease</button>
+      </div>
+      <p style="font-size:11px;color:var(--text2);line-height:1.5">
+        Pick a disease to fetch all associated human proteins from GlyGen, then batch-analyze
+        PTMs across the top glycoproteins. Surfaces proteins with the most modifications,
+        disease-associated SNVs near PTM sites, and PTM type distribution.
+      </p>
     </div>
 
     <div class="section">
@@ -1043,9 +1138,392 @@ function dl(content, name, type) {
 }
 
 // ========================================================
+// MODE TOGGLE
+// ========================================================
+function setMode(mode) {
+  document.getElementById('modeProtein').classList.toggle('active', mode === 'protein');
+  document.getElementById('modeDisease').classList.toggle('active', mode === 'disease');
+  document.getElementById('proteinMode').classList.toggle('active', mode === 'protein');
+  document.getElementById('diseaseMode').classList.toggle('active', mode === 'disease');
+  document.getElementById('proteinPresets').classList.toggle('active', mode === 'protein');
+  document.getElementById('diseasePresets').classList.toggle('active', mode === 'disease');
+}
+
+// ========================================================
+// DISEASE EXPLORER
+// ========================================================
+let diseaseData = null; // holds the disease exploration results
+
+const DISEASE_DOIDS = {
+  "Alzheimer's disease": 'doid.10652',
+  "Parkinson's disease": 'doid.14330',
+  "amyotrophic lateral sclerosis": 'doid.332',
+  "Huntington's disease": 'doid.12858',
+  "frontotemporal dementia": 'doid.9255',
+  "Creutzfeldt-Jakob disease": 'doid.11949'
+};
+
+function quickDisease(doid, label) {
+  document.getElementById('diseaseInput').value = label;
+  document.querySelectorAll('.dis-preset-btn').forEach(b => b.classList.remove('active'));
+  if (event && event.target) {
+    const btn = event.target.closest('.dis-preset-btn');
+    if (btn) btn.classList.add('active');
+  }
+  doDiseaseSearch(doid);
+}
+
+async function doDiseaseSearch(forceDoid) {
+  const input = document.getElementById('diseaseInput').value.trim();
+  if (!input && !forceDoid) return;
+
+  const main = document.getElementById('mainArea');
+  document.getElementById('emptyState').classList.add('hidden');
+  document.getElementById('resultsArea').classList.add('hidden');
+  document.getElementById('loadingState').classList.remove('hidden');
+  document.getElementById('loadingState').innerHTML = '<div class="spinner"></div>Fetching disease data from GlyGen...';
+  document.getElementById('disSearchBtn').disabled = true;
+
+  try {
+    // Resolve DOID
+    let doid = forceDoid || null;
+    if (!doid) {
+      // Check if input is a DOID
+      const doidMatch = input.match(/(?:DOID[:\.])?(\d+)/i);
+      if (doidMatch && input.toLowerCase().startsWith('doid')) {
+        doid = 'doid.' + doidMatch[1];
+      } else {
+        // Search by name
+        for (const [name, id] of Object.entries(DISEASE_DOIDS)) {
+          if (name.toLowerCase().includes(input.toLowerCase()) || input.toLowerCase().includes(name.toLowerCase().split("'")[0])) {
+            doid = id;
+            break;
+          }
+        }
+        if (!doid) {
+          // Try GlyGen disease simple search
+          const sr = await fetch('https://api.glygen.org/disease/search_simple/', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ term_category: 'disease', term: input })
+          }).then(r => r.json());
+          if (sr.resultcount && sr.resultcount > 0) {
+            // The simple search doesn't give us the DOID directly, try the name as DOID
+            doid = 'doid.' + input.replace(/\D/g, '');
+          }
+          if (!doid) throw new Error(`Could not resolve "${input}" to a disease. Try "Alzheimer", "Parkinson", or a DOID like "DOID:10652".`);
+        }
+      }
+    }
+
+    // Fetch disease detail
+    const disDetail = await fetch(`https://api.glygen.org/disease/detail/${doid}/`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}'
+    }).then(r => r.json());
+
+    if (disDetail.error_list) throw new Error(`Disease ${doid} not found in GlyGen. Try a different DOID.`);
+
+    const disName = disDetail.recommended_name?.name || doid;
+    const disDesc = disDetail.recommended_name?.description || '';
+    const allProts = disDetail.proteins || [];
+
+    // Filter to human glycoproteins (most PTM-rich)
+    const humanProts = allProts.filter(p => p.species?.some(s => s.taxid === 9606));
+    const humanGlyco = humanProts.filter(p => p.glycoprotein === 'yes');
+    const nonGlyco = humanProts.filter(p => p.glycoprotein !== 'yes');
+
+    // Take top N glycoproteins first, then fill with non-glyco
+    const maxN = parseInt(document.getElementById('disMaxProteins').value) || 20;
+    const toAnalyze = [...humanGlyco.slice(0, maxN)];
+    if (toAnalyze.length < maxN) {
+      toAnalyze.push(...nonGlyco.slice(0, maxN - toAnalyze.length));
+    }
+
+    // Show progress and start batch fetching PTM details
+    document.getElementById('loadingState').innerHTML = `
+      <div style="text-align:center;width:100%;max-width:500px">
+        <div style="font-size:15px;font-weight:600;margin-bottom:8px">${disName}</div>
+        <div style="font-size:13px;color:var(--text2);margin-bottom:12px">${humanProts.length} human proteins found (${humanGlyco.length} glycoproteins)</div>
+        <div style="font-size:13px;margin-bottom:6px">Analyzing PTMs for top ${toAnalyze.length} proteins...</div>
+        <div class="progress-bar"><div class="progress-fill" id="disProgress" style="width:0%"></div></div>
+        <div style="font-size:12px;color:var(--text2)" id="disProgressText">0 / ${toAnalyze.length}</div>
+      </div>`;
+
+    // Batch fetch PTM data (3 concurrent)
+    const results = [];
+    const concurrency = 3;
+    let done = 0;
+
+    async function fetchProtPTM(prot) {
+      const ac = prot.uniprot_ac || prot.uniprot_canonical_ac?.split('-')[0];
+      try {
+        const detail = await fetch(`https://api.glygen.org/protein/detail/${ac}/`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}'
+        }).then(r => r.json());
+
+        if (detail.error_list) return null;
+
+        const glyc = detail.glycosylation || [];
+        const phos = detail.phosphorylation || [];
+        const snvs = detail.snv || [];
+        const ptmAnnot = detail.ptm_annotation || [];
+        const diseases = detail.disease || [];
+
+        const geneName = detail.gene_names?.find(g => g.type === 'recommended')?.name || prot.gene_names?.[0]?.name || ac;
+        const protName = detail.protein_names?.find(p => p.type === 'recommended')?.name || prot.protein_names?.[0]?.name || '';
+        const seqLen = detail.sequence?.length || 0;
+
+        // Disease-associated SNVs at/near PTM sites
+        const ptmPositions = new Set([
+          ...glyc.map(g => g.start_pos),
+          ...phos.map(p => p.start_pos)
+        ].filter(Boolean));
+        const snvsAtPTM = snvs.filter(s => {
+          if (!s.start_pos) return false;
+          for (const pos of ptmPositions) {
+            if (Math.abs(s.start_pos - pos) <= 3) return true;
+          }
+          return false;
+        });
+        const disSnvsAtPTM = snvsAtPTM.filter(s => s.disease && s.disease.length > 0);
+
+        return {
+          ac, geneName, protName, seqLen,
+          glycoCount: new Set(glyc.map(g => g.start_pos)).size,
+          phosCount: phos.length,
+          snvCount: snvs.length,
+          totalPTMs: new Set(glyc.map(g => g.start_pos)).size + phos.length,
+          glycTypes: { nLinked: glyc.filter(g => g.type === 'N-linked').length, oLinked: glyc.filter(g => g.type === 'O-linked').length, cLinked: glyc.filter(g => g.type === 'C-linked').length },
+          snvsAtPTM: snvsAtPTM.length,
+          disSnvsAtPTM: disSnvsAtPTM.length,
+          disSnvsDetail: disSnvsAtPTM.slice(0, 5),
+          ptmAnnotCount: ptmAnnot.length,
+          diseaseCount: diseases.length,
+          glycosylation: glyc,
+          phosphorylation: phos,
+          raw: detail
+        };
+      } catch { return null; }
+    }
+
+    // Process in batches
+    for (let i = 0; i < toAnalyze.length; i += concurrency) {
+      const batch = toAnalyze.slice(i, i + concurrency);
+      const batchResults = await Promise.all(batch.map(fetchProtPTM));
+      results.push(...batchResults.filter(Boolean));
+      done += batch.length;
+      const pct = Math.round((done / toAnalyze.length) * 100);
+      const progEl = document.getElementById('disProgress');
+      const textEl = document.getElementById('disProgressText');
+      if (progEl) progEl.style.width = pct + '%';
+      if (textEl) textEl.textContent = `${done} / ${toAnalyze.length}`;
+    }
+
+    // Sort by total PTMs descending
+    results.sort((a, b) => b.totalPTMs - a.totalPTMs);
+
+    diseaseData = {
+      doid, disName, disDesc,
+      totalHumanProteins: humanProts.length,
+      totalGlycoproteins: humanGlyco.length,
+      analyzedCount: results.length,
+      proteins: results,
+      children: disDetail.children || []
+    };
+
+    renderDiseaseExplorer();
+
+  } catch (err) {
+    document.getElementById('loadingState').classList.add('hidden');
+    const area = document.getElementById('resultsArea');
+    area.innerHTML = `<div class="error-msg">${err.message}</div>`;
+    area.classList.remove('hidden');
+  }
+  document.getElementById('disSearchBtn').disabled = false;
+}
+
+function renderDiseaseExplorer() {
+  document.getElementById('loadingState').classList.add('hidden');
+  document.getElementById('emptyState').classList.add('hidden');
+  const area = document.getElementById('resultsArea');
+  area.classList.remove('hidden');
+
+  const d = diseaseData;
+  const prots = d.proteins;
+
+  // Aggregate stats
+  const totalGlyc = prots.reduce((s, p) => s + p.glycoCount, 0);
+  const totalPhos = prots.reduce((s, p) => s + p.phosCount, 0);
+  const totalSNVsAtPTM = prots.reduce((s, p) => s + p.snvsAtPTM, 0);
+  const totalDisSNVsAtPTM = prots.reduce((s, p) => s + p.disSnvsAtPTM, 0);
+  const protsWithPTMs = prots.filter(p => p.totalPTMs > 0).length;
+
+  // Top impactful: have disease SNVs at PTM sites
+  const impactful = prots.filter(p => p.disSnvsAtPTM > 0).sort((a, b) => b.disSnvsAtPTM - a.disSnvsAtPTM);
+
+  // PTM type breakdown across all proteins
+  const totalNLinked = prots.reduce((s, p) => s + p.glycTypes.nLinked, 0);
+  const totalOLinked = prots.reduce((s, p) => s + p.glycTypes.oLinked, 0);
+  const totalCLinked = prots.reduce((s, p) => s + p.glycTypes.cLinked, 0);
+
+  const maxPTM = Math.max(...prots.map(p => p.totalPTMs), 1);
+
+  area.innerHTML = `
+    <!-- Disease header -->
+    <div class="card">
+      <div class="card-body">
+        <div style="display:flex;align-items:flex-start;gap:14px;flex-wrap:wrap">
+          <div style="flex:1;min-width:200px">
+            <div style="font-size:18px;font-weight:700;color:var(--orange)">${d.disName}</div>
+            <div style="font-size:12px;color:var(--text2);margin-top:4px">${d.doid.replace('doid.','DOID:')}</div>
+            ${d.disDesc ? `<div style="font-size:12px;color:var(--text2);margin-top:6px;line-height:1.5">${d.disDesc.substring(0, 300)}${d.disDesc.length > 300 ? '...' : ''}</div>` : ''}
+          </div>
+          <div class="export-btns">
+            <button class="btn btn-outline btn-sm" onclick="exportDiseaseCSV()">Export CSV</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Aggregate stats -->
+    <div class="stats-row">
+      <div class="stat-card"><div class="stat-val" style="color:var(--text)">${d.totalHumanProteins}</div><div class="stat-lbl">Human Proteins</div></div>
+      <div class="stat-card"><div class="stat-val" style="color:var(--glyco)">${d.totalGlycoproteins}</div><div class="stat-lbl">Glycoproteins</div></div>
+      <div class="stat-card"><div class="stat-val" style="color:var(--accent)">${d.analyzedCount}</div><div class="stat-lbl">Analyzed</div></div>
+      <div class="stat-card"><div class="stat-val" style="color:var(--green)">${totalGlyc}</div><div class="stat-lbl">Glyco Sites</div></div>
+      <div class="stat-card"><div class="stat-val" style="color:var(--phospho)">${totalPhos}</div><div class="stat-lbl">Phospho Sites</div></div>
+      <div class="stat-card"><div class="stat-val" style="color:var(--red)">${totalDisSNVsAtPTM}</div><div class="stat-lbl">Disease SNVs at PTM</div></div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="card">
+      <div class="tabs" id="disTabs">
+        <div class="tab active" data-tab="disTabRank" onclick="switchDisTab('disTabRank')">PTM Ranking</div>
+        <div class="tab" data-tab="disTabImpact" onclick="switchDisTab('disTabImpact')">Impactful PTMs (${impactful.length})</div>
+        <div class="tab" data-tab="disTabBreak" onclick="switchDisTab('disTabBreak')">PTM Breakdown</div>
+        <div class="tab" data-tab="disTabTable" onclick="switchDisTab('disTabTable')">Full Table</div>
+      </div>
+
+      <!-- PTM Ranking (bar chart) -->
+      <div class="tab-panel active" id="disTabRank">
+        <div class="card-body">
+          <p style="font-size:12px;color:var(--text2);margin-bottom:14px">Proteins ranked by total PTM count (glycosylation + phosphorylation). Click a protein to open it in Protein Search mode.</p>
+          <div id="disRankBars">
+            ${prots.slice(0, 25).map(p => {
+              const pct = Math.round((p.totalPTMs / maxPTM) * 100);
+              const glycPct = p.totalPTMs > 0 ? Math.round((p.glycoCount / p.totalPTMs) * 100) : 0;
+              return `<div class="bar-chart-row" style="cursor:pointer" onclick="drillIntoProtein('${p.ac}')">
+                <div class="bar-label"><strong>${p.geneName}</strong><br><span style="font-size:10px">${p.ac}</span></div>
+                <div class="bar-track">
+                  <div class="bar-fill" style="width:${Math.max(pct, 2)}%;background:linear-gradient(90deg, var(--glyco) ${glycPct}%, var(--phospho) ${glycPct}%)">${p.totalPTMs}</div>
+                </div>
+                <div class="bar-val">${p.disSnvsAtPTM > 0 ? `<span style="color:var(--red)" title="${p.disSnvsAtPTM} disease SNVs at PTM sites">&#9888; ${p.disSnvsAtPTM}</span>` : ''}</div>
+              </div>`;
+            }).join('')}
+          </div>
+          <div style="display:flex;gap:14px;margin-top:10px;font-size:11px;color:var(--text2)">
+            <span><span style="display:inline-block;width:12px;height:8px;background:var(--glyco);border-radius:2px"></span> Glycosylation</span>
+            <span><span style="display:inline-block;width:12px;height:8px;background:var(--phospho);border-radius:2px"></span> Phosphorylation</span>
+            <span><span style="color:var(--red)">&#9888;</span> Disease SNVs at PTM sites</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Impactful PTMs -->
+      <div class="tab-panel" id="disTabImpact">
+        <div class="card-body">
+          ${impactful.length === 0
+            ? '<p style="color:var(--text2)">No disease-associated SNVs found at or near PTM sites in the analyzed proteins. Try increasing the number of proteins to analyze.</p>'
+            : `<p style="font-size:12px;color:var(--text2);margin-bottom:14px">${impactful.length} proteins have disease-associated mutations within 3 residues of a PTM site. These are high-priority candidates where mutations may disrupt post-translational modification.</p>
+              ${impactful.map(p => `<div class="impact-card">
+                <div class="impact-title" style="cursor:pointer;color:var(--accent)" onclick="drillIntoProtein('${p.ac}')">${p.geneName} <span style="font-weight:400;color:var(--text2)">(${p.ac})</span></div>
+                <div class="impact-detail">${p.protName} &middot; ${p.seqLen} aa &middot; ${p.glycoCount} glyco sites &middot; ${p.phosCount} phospho sites</div>
+                <div class="impact-detail" style="color:var(--red);margin-top:4px"><strong>${p.disSnvsAtPTM} disease SNV(s) at/near PTM sites</strong></div>
+                <div class="impact-tags">
+                  ${p.disSnvsDetail.map(s => `<span class="ptm-badge" style="background:rgba(239,68,68,.12);color:var(--red)">${s.site_lbl || 'pos ' + s.start_pos}: ${s.sequence_org||''}&rarr;${s.sequence_mut||''} ${s.disease?.[0]?.recommended_name?.name ? '(' + s.disease[0].recommended_name.name + ')' : ''}</span>`).join('')}
+                </div>
+              </div>`).join('')}`
+          }
+        </div>
+      </div>
+
+      <!-- PTM Breakdown -->
+      <div class="tab-panel" id="disTabBreak">
+        <div class="card-body">
+          <p style="font-size:12px;color:var(--text2);margin-bottom:14px">Distribution of PTM types across all ${d.analyzedCount} analyzed proteins.</p>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px">
+            <div class="stat-card"><div class="stat-val" style="color:var(--green)">${totalNLinked}</div><div class="stat-lbl">N-linked Glycosylation</div></div>
+            <div class="stat-card"><div class="stat-val" style="color:var(--lipid)">${totalOLinked}</div><div class="stat-lbl">O-linked Glycosylation</div></div>
+            <div class="stat-card"><div class="stat-val" style="color:var(--orange)">${totalCLinked}</div><div class="stat-lbl">C-linked Glycosylation</div></div>
+            <div class="stat-card"><div class="stat-val" style="color:var(--phospho)">${totalPhos}</div><div class="stat-lbl">Phosphorylation</div></div>
+            <div class="stat-card"><div class="stat-val" style="color:var(--red)">${totalSNVsAtPTM}</div><div class="stat-lbl">All SNVs at PTM</div></div>
+            <div class="stat-card"><div class="stat-val" style="color:var(--red)">${totalDisSNVsAtPTM}</div><div class="stat-lbl">Disease SNVs at PTM</div></div>
+          </div>
+          <div style="margin-top:20px">
+            <h4 style="font-size:13px;margin-bottom:10px;color:var(--text2)">Proteins with most glycosylation sites</h4>
+            ${[...prots].sort((a,b) => b.glycoCount - a.glycoCount).slice(0, 10).map(p =>
+              `<div class="bar-chart-row" style="cursor:pointer" onclick="drillIntoProtein('${p.ac}')">
+                <div class="bar-label">${p.geneName}</div>
+                <div class="bar-track"><div class="bar-fill" style="width:${Math.max(Math.round(p.glycoCount / Math.max(...prots.map(x=>x.glycoCount),1) * 100), 2)}%;background:var(--glyco)">${p.glycoCount}</div></div>
+              </div>`
+            ).join('')}
+          </div>
+        </div>
+      </div>
+
+      <!-- Full Table -->
+      <div class="tab-panel" id="disTabTable">
+        <div class="table-wrap" style="max-height:560px;overflow-y:auto">
+          <table>
+            <thead><tr>
+              <th>Gene</th><th>UniProt</th><th>Protein Name</th><th>Length</th>
+              <th>Glyco Sites</th><th>Phospho Sites</th><th>Total PTMs</th>
+              <th>SNVs</th><th>Disease SNVs@PTM</th>
+            </tr></thead>
+            <tbody>
+              ${prots.map(p => `<tr style="cursor:pointer" onclick="drillIntoProtein('${p.ac}')">
+                <td><strong>${p.geneName}</strong></td>
+                <td><a href="https://www.glygen.org/protein/${p.ac}-1" target="_blank">${p.ac}</a></td>
+                <td style="font-size:12px;max-width:200px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.protName}</td>
+                <td>${p.seqLen}</td>
+                <td style="color:var(--glyco);font-weight:600">${p.glycoCount}</td>
+                <td style="color:var(--phospho);font-weight:600">${p.phosCount}</td>
+                <td style="font-weight:700">${p.totalPTMs}</td>
+                <td>${p.snvCount}</td>
+                <td style="${p.disSnvsAtPTM > 0 ? 'color:var(--red);font-weight:700' : 'color:var(--text2)'}">${p.disSnvsAtPTM}</td>
+              </tr>`).join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function switchDisTab(id) {
+  document.querySelectorAll('#disTabs .tab').forEach(t => t.classList.toggle('active', t.dataset.tab === id));
+  document.querySelectorAll('#disTabs ~ .tab-panel').forEach(p => p.classList.toggle('active', p.id === id));
+}
+
+function drillIntoProtein(ac) {
+  setMode('protein');
+  document.getElementById('searchInput').value = ac;
+  doSearch();
+}
+
+function exportDiseaseCSV() {
+  if (!diseaseData) return;
+  const hdr = ['Gene','UniProt','Protein_Name','Length','Glyco_Sites','N_Linked','O_Linked','C_Linked','Phospho_Sites','Total_PTMs','SNV_Count','SNVs_at_PTM','Disease_SNVs_at_PTM'];
+  const rows = diseaseData.proteins.map(p => [p.geneName, p.ac, `"${(p.protName||'').replace(/"/g,'""')}"`, p.seqLen,
+    p.glycoCount, p.glycTypes.nLinked, p.glycTypes.oLinked, p.glycTypes.cLinked,
+    p.phosCount, p.totalPTMs, p.snvCount, p.snvsAtPTM, p.disSnvsAtPTM]);
+  dl([hdr.join(','), ...rows.map(r => r.join(','))].join('\n'), `${diseaseData.disName.replace(/\s+/g,'_')}_PTM_analysis.csv`, 'text/csv');
+}
+
+// ========================================================
 // EVENTS
 // ========================================================
 document.getElementById('searchInput').addEventListener('keydown', e => { if (e.key === 'Enter') doSearch(); });
+document.getElementById('diseaseInput').addEventListener('keydown', e => { if (e.key === 'Enter') doDiseaseSearch(); });
 window.addEventListener('resize', () => { if (currentData) renderPTMMap(); });
 </script>
 </body>
