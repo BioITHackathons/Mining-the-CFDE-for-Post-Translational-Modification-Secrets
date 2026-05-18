@@ -747,11 +747,13 @@ function updateApiLogUI() {
         ${e.error ? ` &middot; <span style="color:var(--red)">${e.error}</span>` : ''}
       </div>
       <div class="api-detail" id="apiDetail${e.id}">
-        ${e.requestBody ? `<label>Request Body</label><pre>${formatJSON(e.requestBody)}</pre>` : ''}
-        <label>Response Preview (first 2 KB)</label>
-        <pre>${e.responsePreview ? escapeHtml(formatJSON(e.responsePreview)) : '(empty)'}</pre>
-        <label>Full URL</label>
+        ${e.requestBody ? `<label>Request Body <button class="btn btn-outline btn-sm" style="margin-left:6px;font-size:10px;padding:1px 6px" onclick="event.stopPropagation();copyText(formatJSON(\`${e.requestBody.replace(/`/g,'\\`').replace(/\\/g,'\\\\')}\`))">Copy</button></label><pre>${formatJSON(e.requestBody)}</pre>` : ''}
+        <label>Response Preview (first 2 KB) <button class="btn btn-outline btn-sm" style="margin-left:6px;font-size:10px;padding:1px 6px" onclick="event.stopPropagation();copyText(document.getElementById('apiResp${e.id}').textContent)">Copy</button></label>
+        <pre id="apiResp${e.id}">${e.responsePreview ? escapeHtml(formatJSON(e.responsePreview)) : '(empty)'}</pre>
+        <label>Full URL <button class="btn btn-outline btn-sm" style="margin-left:6px;font-size:10px;padding:1px 6px" onclick="event.stopPropagation();copyText('${escapeHtml(e.url)}')">Copy</button></label>
         <pre>${escapeHtml(e.url)}</pre>
+        <label>cURL Command <button class="btn btn-outline btn-sm" style="margin-left:6px;font-size:10px;padding:1px 6px" onclick="event.stopPropagation();copyText(document.getElementById('apiCurl${e.id}').textContent)">Copy</button></label>
+        <pre id="apiCurl${e.id}">${escapeHtml(buildCurl(e))}</pre>
       </div>
     </div>`;
   }).join('');
@@ -790,6 +792,33 @@ function formatJSON(str) {
 
 function escapeHtml(s) {
   return (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function copyText(text) {
+  navigator.clipboard.writeText(text).then(() => {
+    // Brief visual feedback
+    const toast = document.createElement('div');
+    toast.textContent = 'Copied!';
+    toast.style.cssText = 'position:fixed;bottom:40px;left:50%;transform:translateX(-50%);background:var(--accent);color:#fff;padding:6px 16px;border-radius:6px;font-size:13px;z-index:9999;';
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 1200);
+  });
+}
+
+function buildCurl(entry) {
+  let cmd = `curl -s -X ${entry.method} '${entry.url}'`;
+  if (entry.method === 'POST') {
+    cmd += ` \\\n  -H 'Content-Type: application/json'`;
+    if (entry.requestBody) {
+      try {
+        const formatted = JSON.stringify(JSON.parse(entry.requestBody));
+        cmd += ` \\\n  -d '${formatted}'`;
+      } catch {
+        cmd += ` \\\n  -d '${entry.requestBody}'`;
+      }
+    }
+  }
+  return cmd;
 }
 
 // Data Sources modal
