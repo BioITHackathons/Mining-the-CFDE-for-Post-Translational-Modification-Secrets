@@ -1,0 +1,1352 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PTM-Gene-Disease Network - CFDE PTM Explorer</title>
+<script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+<style>
+:root {
+  --bg: #0f1117;
+  --surface: #1a1d27;
+  --surface2: #242836;
+  --border: #2e3348;
+  --text: #e2e4eb;
+  --text2: #9498ad;
+  --accent: #6c8aff;
+  --accent2: #4a6ade;
+  --phospho: #ff6b6b;
+  --glyco: #4ecdc4;
+  --green: #4ade80;
+  --lipid: #22d3ee;
+  --orange: #f59e0b;
+  --red: #ef4444;
+  --pink: #f472b6;
+  --radius: 8px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  height: 100vh;
+  overflow: hidden;
+  line-height: 1.5;
+}
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+/* Header */
+header {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 14px 24px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+}
+header h1 { font-size: 20px; font-weight: 600; white-space: nowrap; }
+header h1 .hl { color: var(--accent); }
+header .subtitle { font-size: 13px; color: var(--text2); flex: 1; }
+.hdr-badges { display: flex; gap: 6px; flex-wrap: wrap; }
+.hdr-badge {
+  font-size: 10px; padding: 3px 8px; border-radius: 12px;
+  background: var(--surface2); border: 1px solid var(--border); color: var(--text2);
+  text-transform: uppercase; letter-spacing: .5px; font-weight: 600;
+}
+.back-link {
+  font-size: 13px; color: var(--accent); display: inline-flex;
+  align-items: center; gap: 4px; padding: 4px 12px;
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: var(--radius); transition: all .2s;
+}
+.back-link:hover { border-color: var(--accent); text-decoration: none; background: rgba(108,138,255,.08); }
+
+/* Layout */
+.app-layout {
+  display: flex;
+  height: calc(100vh - 52px);
+}
+
+/* Controls panel (left) */
+.controls-panel {
+  width: 260px;
+  min-width: 260px;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+.ctrl-section {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.ctrl-title {
+  font-size: 11px; text-transform: uppercase; letter-spacing: .8px;
+  color: var(--text2); margin-bottom: 10px; font-weight: 600;
+}
+
+/* Search */
+.search-box {
+  width: 100%; padding: 8px 10px;
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: var(--radius); color: var(--text); font-size: 13px;
+  outline: none; transition: border-color .2s;
+}
+.search-box:focus { border-color: var(--accent); }
+.search-box::placeholder { color: var(--text2); }
+
+/* Toggles */
+.toggle-row {
+  display: flex; align-items: center; gap: 8px;
+  margin-bottom: 8px; cursor: pointer; font-size: 13px;
+}
+.toggle-row input[type="checkbox"] { display: none; }
+.toggle-switch {
+  width: 36px; height: 20px; border-radius: 10px;
+  background: var(--surface2); border: 1px solid var(--border);
+  position: relative; transition: all .2s; flex-shrink: 0;
+}
+.toggle-switch::after {
+  content: ''; position: absolute; top: 2px; left: 2px;
+  width: 14px; height: 14px; border-radius: 50%;
+  background: var(--text2); transition: all .2s;
+}
+.toggle-row input:checked + .toggle-switch {
+  background: var(--accent2); border-color: var(--accent);
+}
+.toggle-row input:checked + .toggle-switch::after {
+  transform: translateX(16px); background: #fff;
+}
+.toggle-label { color: var(--text); font-size: 12px; user-select: none; }
+
+/* Legend */
+.legend-section { padding: 14px 16px; }
+.legend-item {
+  display: flex; align-items: center; gap: 8px;
+  margin-bottom: 6px; font-size: 12px; color: var(--text2);
+}
+.legend-shape {
+  width: 14px; height: 14px; flex-shrink: 0;
+}
+.legend-circle { border-radius: 50%; }
+.legend-square { border-radius: 2px; }
+.legend-diamond {
+  width: 12px; height: 12px;
+  transform: rotate(45deg);
+  border-radius: 2px;
+}
+.legend-line {
+  width: 20px; height: 2px; flex-shrink: 0; border-radius: 1px;
+}
+
+/* Network area */
+.network-area {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+}
+.network-area svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* Tooltip */
+.tooltip {
+  position: absolute;
+  display: none;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 14px;
+  font-size: 12px;
+  z-index: 100;
+  max-width: 320px;
+  pointer-events: none;
+  box-shadow: 0 4px 16px rgba(0,0,0,.5);
+}
+.tooltip .tt-name { font-weight: 600; font-size: 13px; margin-bottom: 4px; }
+.tooltip .tt-type { color: var(--text2); font-size: 11px; margin-bottom: 4px; }
+.tooltip .tt-detail { color: var(--text2); font-size: 11px; line-height: 1.5; }
+
+/* Detail panel (right) */
+.detail-panel {
+  width: 320px;
+  min-width: 320px;
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  transition: transform .3s;
+}
+.detail-panel.collapsed {
+  transform: translateX(100%);
+  width: 0; min-width: 0;
+  border: none;
+  overflow: hidden;
+}
+.detail-header {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.detail-header h3 { font-size: 14px; font-weight: 600; flex: 1; }
+.detail-close {
+  background: none; border: none; color: var(--text2);
+  font-size: 18px; cursor: pointer; padding: 2px 6px;
+}
+.detail-close:hover { color: var(--text); }
+.detail-body {
+  padding: 16px;
+  flex: 1;
+  overflow-y: auto;
+}
+.detail-body .label {
+  font-size: 11px; text-transform: uppercase; letter-spacing: .5px;
+  color: var(--text2); font-weight: 600; margin-bottom: 4px; margin-top: 12px;
+}
+.detail-body .label:first-child { margin-top: 0; }
+.detail-body .value {
+  font-size: 13px; color: var(--text); margin-bottom: 4px;
+}
+.detail-body .ptm-bar {
+  display: flex; align-items: center; gap: 8px; margin-bottom: 5px;
+}
+.detail-body .ptm-bar-label {
+  font-size: 11px; min-width: 90px; text-align: right; color: var(--text2);
+}
+.detail-body .ptm-bar-track {
+  flex: 1; height: 16px; background: var(--bg);
+  border-radius: 4px; overflow: hidden; position: relative;
+}
+.detail-body .ptm-bar-fill {
+  height: 100%; border-radius: 4px;
+  display: flex; align-items: center; justify-content: flex-end;
+  padding-right: 5px; font-size: 10px; font-weight: 600; color: #fff;
+  min-width: 18px;
+}
+.detail-body .disease-chip {
+  display: inline-block; padding: 3px 8px; border-radius: 4px; font-size: 11px;
+  margin: 2px 2px; cursor: pointer; transition: all .15s;
+}
+.disease-chip.neuro {
+  background: rgba(244,114,182,.15); border: 1px solid rgba(244,114,182,.3); color: var(--pink);
+}
+.disease-chip.other {
+  background: var(--surface2); border: 1px solid var(--border); color: var(--text2);
+}
+.disease-chip:hover { border-color: var(--accent); }
+
+/* Stats bar */
+.stats-bar {
+  display: flex; gap: 10px; flex-wrap: wrap;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+.stat-pill {
+  font-size: 11px; color: var(--text2);
+  display: flex; align-items: center; gap: 4px;
+}
+.stat-pill .num { font-weight: 700; color: var(--text); font-size: 13px; }
+
+/* Responsive */
+@media (max-width: 1100px) {
+  .detail-panel { width: 280px; min-width: 280px; }
+}
+@media (max-width: 860px) {
+  .app-layout { flex-direction: column; height: auto; }
+  .controls-panel { width: 100%; min-width: 100%; border-right: none; border-bottom: 1px solid var(--border); max-height: 200px; flex-direction: row; overflow-x: auto; }
+  .ctrl-section { min-width: 200px; }
+  .detail-panel { width: 100%; min-width: 100%; max-height: 300px; border-left: none; border-top: 1px solid var(--border); }
+  .network-area { min-height: 400px; }
+}
+
+/* Node labels */
+.node-label {
+  fill: var(--text);
+  font-size: 10px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  pointer-events: none;
+  text-anchor: middle;
+}
+.node-label-gene {
+  font-weight: 600;
+  font-size: 12px;
+  fill: #fff;
+}
+</style>
+</head>
+<body>
+
+<header>
+  <a href="index.html" class="back-link">&#8592; Dashboard</a>
+  <h1><span class="hl">CFDE</span> PTM Network</h1>
+  <span class="subtitle">Interactive Gene-PTM-Disease Relationship Graph</span>
+  <div class="hdr-badges">
+    <span class="hdr-badge">16 Genes</span>
+    <span class="hdr-badge">3 PTM Types</span>
+    <span class="hdr-badge">138 Diseases</span>
+  </div>
+</header>
+
+<div class="stats-bar" id="statsBar">
+  <div class="stat-pill"><span class="num" id="statNodes">0</span> nodes</div>
+  <div class="stat-pill"><span class="num" id="statEdges">0</span> edges</div>
+  <div class="stat-pill"><span class="num" id="statDiseases">0</span> diseases shown</div>
+  <div class="stat-pill"><span class="num" id="statGenes">16</span> genes</div>
+</div>
+
+<div class="app-layout">
+  <!-- Controls Panel -->
+  <div class="controls-panel">
+    <div class="ctrl-section">
+      <div class="ctrl-title">Search</div>
+      <input type="text" class="search-box" id="searchBox" placeholder="Find gene or disease..." />
+    </div>
+
+    <div class="ctrl-section">
+      <div class="ctrl-title">Filters</div>
+      <label class="toggle-row">
+        <input type="checkbox" id="toggleNeuroOnly" checked />
+        <span class="toggle-switch"></span>
+        <span class="toggle-label">Neuro diseases only</span>
+      </label>
+      <label class="toggle-row">
+        <input type="checkbox" id="togglePtmEdges" checked />
+        <span class="toggle-switch"></span>
+        <span class="toggle-label">Show PTM edges</span>
+      </label>
+      <label class="toggle-row">
+        <input type="checkbox" id="toggleDiseaseEdges" checked />
+        <span class="toggle-switch"></span>
+        <span class="toggle-label">Show disease edges</span>
+      </label>
+      <label class="toggle-row">
+        <input type="checkbox" id="toggleLabels" checked />
+        <span class="toggle-switch"></span>
+        <span class="toggle-label">Show labels</span>
+      </label>
+    </div>
+
+    <div class="ctrl-section legend-section">
+      <div class="ctrl-title">Legend</div>
+      <div class="legend-item">
+        <div class="legend-shape legend-circle" style="background: var(--accent);"></div>
+        Gene / Protein
+      </div>
+      <div class="legend-item">
+        <div class="legend-shape legend-diamond" style="background: var(--pink);"></div>
+        Disease
+      </div>
+      <div class="legend-item">
+        <div class="legend-shape legend-square" style="background: var(--phospho);"></div>
+        Phosphorylation
+      </div>
+      <div class="legend-item">
+        <div class="legend-shape legend-square" style="background: var(--green);"></div>
+        N-linked glycosylation
+      </div>
+      <div class="legend-item">
+        <div class="legend-shape legend-square" style="background: var(--lipid);"></div>
+        O-linked glycosylation
+      </div>
+      <div style="margin-top: 10px; border-top: 1px solid var(--border); padding-top: 10px;">
+        <div class="legend-item">
+          <div class="legend-line" style="background: #555;"></div>
+          Gene-Disease link
+        </div>
+        <div class="legend-item">
+          <div class="legend-line" style="background: var(--phospho);"></div>
+          Gene-PTM link (width = site count)
+        </div>
+      </div>
+    </div>
+
+    <div class="ctrl-section" style="flex:1; display:flex; flex-direction:column; justify-content:flex-end;">
+      <p style="font-size:10px; color:var(--text2); line-height:1.5;">
+        Drag nodes to reposition. Scroll to zoom. Click nodes for details.
+        Data from CFDE PTM mining database.
+      </p>
+    </div>
+  </div>
+
+  <!-- Network SVG -->
+  <div class="network-area" id="networkArea">
+    <div class="tooltip" id="tooltip"></div>
+  </div>
+
+  <!-- Detail Panel -->
+  <div class="detail-panel collapsed" id="detailPanel">
+    <div class="detail-header">
+      <h3 id="detailTitle">Details</h3>
+      <button class="detail-close" onclick="closeDetail()">&times;</button>
+    </div>
+    <div class="detail-body" id="detailBody"></div>
+  </div>
+</div>
+
+<script>
+// ==============================================================
+// EMBEDDED DATA
+// ==============================================================
+const PROTEINS = [
+  {"uniprot_accession":"P00441","gene_symbol":"SOD1","protein_name":"Superoxide dismutase [Cu-Zn]"},
+  {"uniprot_accession":"P04062","gene_symbol":"GBA1","protein_name":"Glucosylceramidase"},
+  {"uniprot_accession":"P05067","gene_symbol":"APP","protein_name":"Amyloid-beta precursor protein"},
+  {"uniprot_accession":"P10636","gene_symbol":"MAPT","protein_name":"Microtubule-associated protein tau"},
+  {"uniprot_accession":"P28799","gene_symbol":"GRN","protein_name":"Progranulin"},
+  {"uniprot_accession":"P35637","gene_symbol":"FUS","protein_name":"RNA-binding protein FUS"},
+  {"uniprot_accession":"P37840","gene_symbol":"SNCA","protein_name":"Alpha-synuclein"},
+  {"uniprot_accession":"P42858","gene_symbol":"HTT","protein_name":"Huntingtin"},
+  {"uniprot_accession":"P49768","gene_symbol":"PSEN1","protein_name":"Presenilin-1"},
+  {"uniprot_accession":"P56817","gene_symbol":"BACE1","protein_name":"Beta-secretase 1"},
+  {"uniprot_accession":"Q13148","gene_symbol":"TARDBP","protein_name":"TAR DNA-binding protein 43"},
+  {"uniprot_accession":"Q5S007","gene_symbol":"LRRK2","protein_name":"Leucine-rich repeat serine/threonine-protein kinase 2"},
+  {"uniprot_accession":"Q96LT7","gene_symbol":"C9orf72","protein_name":"Guanine nucleotide exchange C9orf72"},
+  {"uniprot_accession":"Q99497","gene_symbol":"PARK7","protein_name":"Parkinsonism associated deglycase"},
+  {"uniprot_accession":"Q9BXM7","gene_symbol":"PINK1","protein_name":"Serine/threonine-protein kinase PINK1"},
+  {"uniprot_accession":"Q9NZC2","gene_symbol":"TREM2","protein_name":"Triggering receptor expressed on myeloid cells 2"}
+];
+
+const PTM_COUNTS = [
+  {"gene_symbol":"APP","ptm_type":"N-linked glycosylation","count":2},
+  {"gene_symbol":"APP","ptm_type":"O-linked glycosylation","count":28},
+  {"gene_symbol":"APP","ptm_type":"phosphorylation","count":9},
+  {"gene_symbol":"BACE1","ptm_type":"N-linked glycosylation","count":4},
+  {"gene_symbol":"BACE1","ptm_type":"O-linked glycosylation","count":1},
+  {"gene_symbol":"BACE1","ptm_type":"phosphorylation","count":1},
+  {"gene_symbol":"C9orf72","ptm_type":"O-linked glycosylation","count":1},
+  {"gene_symbol":"FUS","ptm_type":"N-linked glycosylation","count":1},
+  {"gene_symbol":"FUS","ptm_type":"O-linked glycosylation","count":12},
+  {"gene_symbol":"FUS","ptm_type":"phosphorylation","count":21},
+  {"gene_symbol":"GBA1","ptm_type":"N-linked glycosylation","count":5},
+  {"gene_symbol":"GBA1","ptm_type":"O-linked glycosylation","count":3},
+  {"gene_symbol":"GRN","ptm_type":"N-linked glycosylation","count":6},
+  {"gene_symbol":"GRN","ptm_type":"O-linked glycosylation","count":5},
+  {"gene_symbol":"GRN","ptm_type":"phosphorylation","count":3},
+  {"gene_symbol":"HTT","ptm_type":"N-linked glycosylation","count":1},
+  {"gene_symbol":"HTT","ptm_type":"O-linked glycosylation","count":9},
+  {"gene_symbol":"HTT","ptm_type":"phosphorylation","count":15},
+  {"gene_symbol":"LRRK2","ptm_type":"O-linked glycosylation","count":2},
+  {"gene_symbol":"LRRK2","ptm_type":"phosphorylation","count":27},
+  {"gene_symbol":"MAPT","ptm_type":"N-linked glycosylation","count":1},
+  {"gene_symbol":"MAPT","ptm_type":"O-linked glycosylation","count":9},
+  {"gene_symbol":"MAPT","ptm_type":"phosphorylation","count":52},
+  {"gene_symbol":"PARK7","ptm_type":"O-linked glycosylation","count":1},
+  {"gene_symbol":"PARK7","ptm_type":"phosphorylation","count":3},
+  {"gene_symbol":"PINK1","ptm_type":"O-linked glycosylation","count":2},
+  {"gene_symbol":"PINK1","ptm_type":"phosphorylation","count":7},
+  {"gene_symbol":"PSEN1","ptm_type":"phosphorylation","count":13},
+  {"gene_symbol":"SNCA","ptm_type":"O-linked glycosylation","count":6},
+  {"gene_symbol":"SNCA","ptm_type":"phosphorylation","count":7},
+  {"gene_symbol":"SOD1","ptm_type":"N-linked glycosylation","count":1},
+  {"gene_symbol":"SOD1","ptm_type":"phosphorylation","count":5},
+  {"gene_symbol":"TARDBP","ptm_type":"O-linked glycosylation","count":3},
+  {"gene_symbol":"TARDBP","ptm_type":"phosphorylation","count":12},
+  {"gene_symbol":"TREM2","ptm_type":"N-linked glycosylation","count":2}
+];
+
+const PROTEIN_DISEASE = [
+  {"gene":"SOD1","disease":"amyotrophic lateral sclerosis type 1","doid":"DOID:0060193","cat":null},
+  {"gene":"SOD1","disease":"Alzheimer's disease","doid":"DOID:10652","cat":"neurodegenerative"},
+  {"gene":"SOD1","disease":"Parkinson's disease","doid":"DOID:14330","cat":"neurodegenerative"},
+  {"gene":"SOD1","disease":"amyotrophic lateral sclerosis","doid":"DOID:332","cat":"neurodegenerative"},
+  {"gene":"SOD1","disease":"prion disease","doid":"DOID:649","cat":null},
+  {"gene":"SOD1","disease":"progressive supranuclear palsy","doid":"DOID:678","cat":null},
+  {"gene":"SOD1","disease":"motor neuron disease","doid":"DOID:231","cat":null},
+  {"gene":"SOD1","disease":"atrial fibrillation","doid":"DOID:0060224","cat":null},
+  {"gene":"SOD1","disease":"hypertension","doid":"DOID:10763","cat":null},
+  {"gene":"SOD1","disease":"Down syndrome","doid":"DOID:14250","cat":null},
+  {"gene":"SOD1","disease":"type 2 diabetes mellitus","doid":"DOID:9352","cat":null},
+  {"gene":"SOD1","disease":"type 1 diabetes mellitus","doid":"DOID:9744","cat":null},
+  {"gene":"SOD1","disease":"myocardial infarction","doid":"DOID:5844","cat":null},
+  {"gene":"SOD1","disease":"coronary artery disease","doid":"DOID:3393","cat":null},
+  {"gene":"SOD1","disease":"pancreatic cancer","doid":"DOID:1793","cat":null},
+  {"gene":"SOD1","disease":"cataract","doid":"DOID:83","cat":null},
+  {"gene":"SOD1","disease":"macular degeneration","doid":"DOID:4448","cat":null},
+  {"gene":"SOD1","disease":"diabetic retinopathy","doid":"DOID:8947","cat":null},
+  {"gene":"SOD1","disease":"retinitis pigmentosa","doid":"DOID:10584","cat":null},
+  {"gene":"SOD1","disease":"dry eye syndrome","doid":"DOID:10140","cat":null},
+  {"gene":"SOD1","disease":"sciatic neuropathy","doid":"DOID:11446","cat":null},
+  {"gene":"SOD1","disease":"diabetic angiopathy","doid":"DOID:11713","cat":null},
+  {"gene":"SOD1","disease":"retinopathy of prematurity","doid":"DOID:13025","cat":null},
+  {"gene":"SOD1","disease":"low tension glaucoma","doid":"DOID:13544","cat":null},
+  {"gene":"SOD1","disease":"ocular hypertension","doid":"DOID:9282","cat":null},
+  {"gene":"SOD1","disease":"Behcet's disease","doid":"DOID:13241","cat":null},
+  {"gene":"SOD1","disease":"polycystic kidney disease","doid":"DOID:0080322","cat":null},
+  {"gene":"SOD1","disease":"metabolic dysfunction-associated steatohepatitis","doid":"DOID:0080547","cat":null},
+  {"gene":"SOD1","disease":"newborn respiratory distress syndrome","doid":"DOID:12716","cat":null},
+  {"gene":"SOD1","disease":"hypothyroidism","doid":"DOID:1459","cat":null},
+  {"gene":"SOD1","disease":"hyperthyroidism","doid":"DOID:7998","cat":null},
+  {"gene":"SOD1","disease":"alcohol use disorder","doid":"DOID:1574","cat":null},
+  {"gene":"SOD1","disease":"cystitis","doid":"DOID:1679","cat":null},
+  {"gene":"SOD1","disease":"transient cerebral ischemia","doid":"DOID:224","cat":null},
+  {"gene":"SOD1","disease":"renal artery obstruction","doid":"DOID:2972","cat":null},
+  {"gene":"SOD1","disease":"middle cerebral artery infarction","doid":"DOID:3525","cat":null},
+  {"gene":"SOD1","disease":"congenital diaphragmatic hernia","doid":"DOID:3827","cat":null},
+  {"gene":"SOD1","disease":"hyperglycemia","doid":"DOID:4195","cat":null},
+  {"gene":"SOD1","disease":"nutritional deficiency disease","doid":"DOID:5113","cat":null},
+  {"gene":"SOD1","disease":"cutaneous leishmaniasis","doid":"DOID:9111","cat":null},
+  {"gene":"GBA1","disease":"Parkinson's disease","doid":"DOID:14330","cat":"neurodegenerative"},
+  {"gene":"GBA1","disease":"Gaucher's disease","doid":"DOID:1926","cat":null},
+  {"gene":"GBA1","disease":"Gaucher's disease type I","doid":"DOID:0110957","cat":null},
+  {"gene":"GBA1","disease":"Gaucher's disease type II","doid":"DOID:0110958","cat":null},
+  {"gene":"GBA1","disease":"Gaucher's disease type III","doid":"DOID:0110959","cat":null},
+  {"gene":"GBA1","disease":"Gaucher's disease perinatal lethal","doid":"DOID:0110960","cat":null},
+  {"gene":"GBA1","disease":"Gaucher's disease type IIIC","doid":"DOID:0112250","cat":null},
+  {"gene":"GBA1","disease":"Lewy body dementia","doid":"DOID:12217","cat":null},
+  {"gene":"GBA1","disease":"late onset Parkinson's disease","doid":"DOID:0060892","cat":null},
+  {"gene":"GBA1","disease":"Parkinsonism","doid":"DOID:0080855","cat":null},
+  {"gene":"GBA1","disease":"Netherton syndrome","doid":"DOID:0050474","cat":null},
+  {"gene":"GBA1","disease":"psoriasis","doid":"DOID:8893","cat":null},
+  {"gene":"APP","disease":"Alzheimer's disease","doid":"DOID:10652","cat":"neurodegenerative"},
+  {"gene":"APP","disease":"Alzheimer's disease 1","doid":"DOID:0080348","cat":null},
+  {"gene":"APP","disease":"APP-related cerebral amyloid angiopathy","doid":"DOID:0070028","cat":null},
+  {"gene":"APP","disease":"traumatic brain injury","doid":"DOID:0081292","cat":null},
+  {"gene":"APP","disease":"alcohol dependence","doid":"DOID:0050741","cat":null},
+  {"gene":"APP","disease":"diabetic encephalopathy","doid":"DOID:0050850","cat":null},
+  {"gene":"APP","disease":"hypertension","doid":"DOID:10763","cat":null},
+  {"gene":"APP","disease":"iron deficiency anemia","doid":"DOID:11758","cat":null},
+  {"gene":"APP","disease":"alcoholic hepatitis","doid":"DOID:12351","cat":null},
+  {"gene":"APP","disease":"cognitive disorder","doid":"DOID:1561","cat":null},
+  {"gene":"APP","disease":"alcohol use disorder","doid":"DOID:1574","cat":null},
+  {"gene":"APP","disease":"middle cerebral artery infarction","doid":"DOID:3525","cat":null},
+  {"gene":"APP","disease":"periodontitis","doid":"DOID:824","cat":null},
+  {"gene":"APP","disease":"obesity","doid":"DOID:9970","cat":null},
+  {"gene":"MAPT","disease":"Alzheimer's disease","doid":"DOID:10652","cat":"neurodegenerative"},
+  {"gene":"MAPT","disease":"Parkinson's disease","doid":"DOID:14330","cat":"neurodegenerative"},
+  {"gene":"MAPT","disease":"frontotemporal dementia","doid":"DOID:9255","cat":"neurodegenerative"},
+  {"gene":"MAPT","disease":"late onset Parkinson's disease","doid":"DOID:0060892","cat":null},
+  {"gene":"MAPT","disease":"Parkinsonism","doid":"DOID:0080855","cat":null},
+  {"gene":"MAPT","disease":"traumatic brain injury","doid":"DOID:0081292","cat":null},
+  {"gene":"MAPT","disease":"amnestic disorder","doid":"DOID:10914","cat":null},
+  {"gene":"MAPT","disease":"Pick's disease","doid":"DOID:11870","cat":null},
+  {"gene":"MAPT","disease":"Creutzfeldt-Jakob disease","doid":"DOID:11949","cat":null},
+  {"gene":"MAPT","disease":"neurodegenerative disease","doid":"DOID:1289","cat":null},
+  {"gene":"MAPT","disease":"dementia","doid":"DOID:1307","cat":null},
+  {"gene":"MAPT","disease":"cognitive disorder","doid":"DOID:1561","cat":null},
+  {"gene":"MAPT","disease":"breast cancer","doid":"DOID:1612","cat":null},
+  {"gene":"MAPT","disease":"epilepsy","doid":"DOID:1826","cat":null},
+  {"gene":"MAPT","disease":"brain ischemia","doid":"DOID:2316","cat":null},
+  {"gene":"MAPT","disease":"temporal lobe epilepsy","doid":"DOID:3328","cat":null},
+  {"gene":"MAPT","disease":"middle cerebral artery infarction","doid":"DOID:3525","cat":null},
+  {"gene":"MAPT","disease":"essential tremor","doid":"DOID:4990","cat":null},
+  {"gene":"MAPT","disease":"progressive supranuclear palsy","doid":"DOID:678","cat":null},
+  {"gene":"MAPT","disease":"tauopathy","doid":"DOID:680","cat":null},
+  {"gene":"MAPT","disease":"vascular dementia","doid":"DOID:8725","cat":null},
+  {"gene":"MAPT","disease":"alcohol dependence","doid":"DOID:0050741","cat":null},
+  {"gene":"MAPT","disease":"obesity","doid":"DOID:9970","cat":null},
+  {"gene":"GRN","disease":"Alzheimer's disease","doid":"DOID:10652","cat":"neurodegenerative"},
+  {"gene":"GRN","disease":"Parkinson's disease","doid":"DOID:14330","cat":"neurodegenerative"},
+  {"gene":"GRN","disease":"amyotrophic lateral sclerosis","doid":"DOID:332","cat":"neurodegenerative"},
+  {"gene":"GRN","disease":"frontotemporal dementia","doid":"DOID:9255","cat":"neurodegenerative"},
+  {"gene":"GRN","disease":"dementia","doid":"DOID:1307","cat":null},
+  {"gene":"GRN","disease":"multiple sclerosis","doid":"DOID:2377","cat":null},
+  {"gene":"GRN","disease":"relapsing-remitting multiple sclerosis","doid":"DOID:2378","cat":null},
+  {"gene":"GRN","disease":"primary progressive multiple sclerosis","doid":"DOID:0050784","cat":null},
+  {"gene":"GRN","disease":"neuronal ceroid lipofuscinosis 11","doid":"DOID:0110732","cat":null},
+  {"gene":"GRN","disease":"Grn-related frontotemporal lobar degeneration with Tdp43 inclusions","doid":"DOID:0060672","cat":null},
+  {"gene":"GRN","disease":"nephrogenic diabetes insipidus","doid":"DOID:12387","cat":null},
+  {"gene":"GRN","disease":"autistic disorder","doid":"DOID:12849","cat":null},
+  {"gene":"GRN","disease":"status epilepticus","doid":"DOID:1824","cat":null},
+  {"gene":"GRN","disease":"atherosclerosis","doid":"DOID:1936","cat":null},
+  {"gene":"GRN","disease":"bipolar disorder","doid":"DOID:3312","cat":null},
+  {"gene":"FUS","disease":"amyotrophic lateral sclerosis","doid":"DOID:332","cat":"neurodegenerative"},
+  {"gene":"FUS","disease":"frontotemporal dementia","doid":"DOID:9255","cat":"neurodegenerative"},
+  {"gene":"FUS","disease":"amyotrophic lateral sclerosis type 6","doid":"DOID:0060198","cat":null},
+  {"gene":"FUS","disease":"essential tremor 4","doid":"DOID:0111431","cat":null},
+  {"gene":"FUS","disease":"sarcoma","doid":"DOID:1115","cat":null},
+  {"gene":"FUS","disease":"neurodegenerative disease","doid":"DOID:1289","cat":null},
+  {"gene":"FUS","disease":"liposarcoma","doid":"DOID:3382","cat":null},
+  {"gene":"SNCA","disease":"Alzheimer's disease","doid":"DOID:10652","cat":"neurodegenerative"},
+  {"gene":"SNCA","disease":"Parkinson's disease","doid":"DOID:14330","cat":"neurodegenerative"},
+  {"gene":"SNCA","disease":"Parkinson's disease 1","doid":"DOID:0060367","cat":null},
+  {"gene":"SNCA","disease":"late onset Parkinson's disease","doid":"DOID:0060892","cat":null},
+  {"gene":"SNCA","disease":"Parkinson's disease 4","doid":"DOID:0060895","cat":null},
+  {"gene":"SNCA","disease":"Pick's disease","doid":"DOID:11870","cat":null},
+  {"gene":"SNCA","disease":"Creutzfeldt-Jakob disease","doid":"DOID:11949","cat":null},
+  {"gene":"SNCA","disease":"Lewy body dementia","doid":"DOID:12217","cat":null},
+  {"gene":"SNCA","disease":"depressive disorder","doid":"DOID:1596","cat":null},
+  {"gene":"SNCA","disease":"bipolar disorder","doid":"DOID:3312","cat":null},
+  {"gene":"SNCA","disease":"schizophrenia","doid":"DOID:5419","cat":null},
+  {"gene":"SNCA","disease":"multiple system atrophy","doid":"DOID:4752","cat":null},
+  {"gene":"SNCA","disease":"pantothenate kinase-associated neurodegeneration","doid":"DOID:3981","cat":null},
+  {"gene":"SNCA","disease":"vascular dementia","doid":"DOID:8725","cat":null},
+  {"gene":"SNCA","disease":"neurilemmoma","doid":"DOID:3192","cat":null},
+  {"gene":"SNCA","disease":"amphetamine abuse","doid":"DOID:670","cat":null},
+  {"gene":"SNCA","disease":"myeloid leukemia","doid":"DOID:8692","cat":null},
+  {"gene":"HTT","disease":"Huntington's disease","doid":"DOID:12858","cat":"neurodegenerative"},
+  {"gene":"HTT","disease":"Parkinson's disease","doid":"DOID:14330","cat":"neurodegenerative"},
+  {"gene":"HTT","disease":"neurodegenerative disease","doid":"DOID:1289","cat":null},
+  {"gene":"HTT","disease":"transient cerebral ischemia","doid":"DOID:224","cat":null},
+  {"gene":"PSEN1","disease":"Alzheimer's disease","doid":"DOID:10652","cat":"neurodegenerative"},
+  {"gene":"PSEN1","disease":"frontotemporal dementia","doid":"DOID:9255","cat":"neurodegenerative"},
+  {"gene":"PSEN1","disease":"Alzheimer's disease 3","doid":"DOID:0110042","cat":null},
+  {"gene":"PSEN1","disease":"early-onset Parkinson's disease","doid":"DOID:0060894","cat":null},
+  {"gene":"PSEN1","disease":"dilated cardiomyopathy 1U","doid":"DOID:0110455","cat":null},
+  {"gene":"PSEN1","disease":"Pick's disease","doid":"DOID:11870","cat":null},
+  {"gene":"PSEN1","disease":"neurodegenerative disease","doid":"DOID:1289","cat":null},
+  {"gene":"PSEN1","disease":"dilated cardiomyopathy","doid":"DOID:12930","cat":null},
+  {"gene":"PSEN1","disease":"hidradenitis suppurativa","doid":"DOID:2280","cat":null},
+  {"gene":"BACE1","disease":"Alzheimer's disease","doid":"DOID:10652","cat":"neurodegenerative"},
+  {"gene":"BACE1","disease":"dementia","doid":"DOID:1307","cat":null},
+  {"gene":"BACE1","disease":"alcohol use disorder","doid":"DOID:1574","cat":null},
+  {"gene":"BACE1","disease":"transient cerebral ischemia","doid":"DOID:224","cat":null},
+  {"gene":"BACE1","disease":"sensory peripheral neuropathy","doid":"DOID:2491","cat":null},
+  {"gene":"BACE1","disease":"schizophrenia","doid":"DOID:5419","cat":null},
+  {"gene":"TARDBP","disease":"Alzheimer's disease","doid":"DOID:10652","cat":"neurodegenerative"},
+  {"gene":"TARDBP","disease":"Parkinson's disease","doid":"DOID:14330","cat":"neurodegenerative"},
+  {"gene":"TARDBP","disease":"amyotrophic lateral sclerosis","doid":"DOID:332","cat":"neurodegenerative"},
+  {"gene":"TARDBP","disease":"frontotemporal dementia","doid":"DOID:9255","cat":"neurodegenerative"},
+  {"gene":"TARDBP","disease":"amyotrophic lateral sclerosis type 10","doid":"DOID:0060201","cat":null},
+  {"gene":"TARDBP","disease":"Grn-related frontotemporal lobar degeneration with Tdp43 inclusions","doid":"DOID:0060672","cat":null},
+  {"gene":"TARDBP","disease":"obstructive sleep apnea","doid":"DOID:0050848","cat":null},
+  {"gene":"TARDBP","disease":"Pick's disease","doid":"DOID:11870","cat":null},
+  {"gene":"TARDBP","disease":"Lewy body dementia","doid":"DOID:12217","cat":null},
+  {"gene":"TARDBP","disease":"neurodegenerative disease","doid":"DOID:1289","cat":null},
+  {"gene":"TARDBP","disease":"motor neuron disease","doid":"DOID:231","cat":null},
+  {"gene":"TARDBP","disease":"progressive supranuclear palsy","doid":"DOID:678","cat":null},
+  {"gene":"LRRK2","disease":"Parkinson's disease","doid":"DOID:14330","cat":"neurodegenerative"},
+  {"gene":"LRRK2","disease":"amyotrophic lateral sclerosis","doid":"DOID:332","cat":"neurodegenerative"},
+  {"gene":"LRRK2","disease":"frontotemporal dementia","doid":"DOID:9255","cat":"neurodegenerative"},
+  {"gene":"LRRK2","disease":"Parkinson's disease 8","doid":"DOID:0060371","cat":null},
+  {"gene":"LRRK2","disease":"late onset Parkinson's disease","doid":"DOID:0060892","cat":null},
+  {"gene":"LRRK2","disease":"Parkinsonism","doid":"DOID:0080855","cat":null},
+  {"gene":"LRRK2","disease":"synucleinopathy","doid":"DOID:0050890","cat":null},
+  {"gene":"LRRK2","disease":"neurodegenerative disease","doid":"DOID:1289","cat":null},
+  {"gene":"LRRK2","disease":"cancer","doid":"DOID:162","cat":null},
+  {"gene":"LRRK2","disease":"rheumatoid arthritis","doid":"DOID:7148","cat":null},
+  {"gene":"LRRK2","disease":"Crohn's disease","doid":"DOID:8778","cat":null},
+  {"gene":"LRRK2","disease":"diabetic neuropathy","doid":"DOID:9743","cat":null},
+  {"gene":"C9orf72","disease":"amyotrophic lateral sclerosis","doid":"DOID:332","cat":"neurodegenerative"},
+  {"gene":"C9orf72","disease":"frontotemporal dementia","doid":"DOID:9255","cat":"neurodegenerative"},
+  {"gene":"C9orf72","disease":"frontotemporal dementia and/or amyotrophic lateral sclerosis 1","doid":"DOID:0060213","cat":null},
+  {"gene":"C9orf72","disease":"autoimmune disease","doid":"DOID:417","cat":null},
+  {"gene":"PARK7","disease":"Parkinson's disease","doid":"DOID:14330","cat":"neurodegenerative"},
+  {"gene":"PARK7","disease":"Parkinson's disease 7","doid":"DOID:0060370","cat":null},
+  {"gene":"PARK7","disease":"late onset Parkinson's disease","doid":"DOID:0060892","cat":null},
+  {"gene":"PARK7","disease":"early-onset Parkinson's disease","doid":"DOID:0060894","cat":null},
+  {"gene":"PARK7","disease":"Parkinsonism","doid":"DOID:0080855","cat":null},
+  {"gene":"PARK7","disease":"middle cerebral artery infarction","doid":"DOID:3525","cat":null},
+  {"gene":"PARK7","disease":"cerebral infarction","doid":"DOID:3526","cat":null},
+  {"gene":"PARK7","disease":"retinal degeneration","doid":"DOID:8466","cat":null},
+  {"gene":"PINK1","disease":"Parkinson's disease","doid":"DOID:14330","cat":"neurodegenerative"},
+  {"gene":"PINK1","disease":"Parkinson's disease 6","doid":"DOID:0060369","cat":null},
+  {"gene":"PINK1","disease":"late onset Parkinson's disease","doid":"DOID:0060892","cat":null},
+  {"gene":"PINK1","disease":"early-onset Parkinson's disease","doid":"DOID:0060894","cat":null},
+  {"gene":"PINK1","disease":"Parkinsonism","doid":"DOID:0080855","cat":null},
+  {"gene":"PINK1","disease":"metabolic dysfunction-associated steatohepatitis","doid":"DOID:0080547","cat":null},
+  {"gene":"PINK1","disease":"Hirschsprung's disease","doid":"DOID:10487","cat":null},
+  {"gene":"PINK1","disease":"testicular cancer","doid":"DOID:2998","cat":null},
+  {"gene":"TREM2","disease":"Alzheimer's disease","doid":"DOID:10652","cat":"neurodegenerative"},
+  {"gene":"TREM2","disease":"frontotemporal dementia","doid":"DOID:9255","cat":"neurodegenerative"},
+  {"gene":"TREM2","disease":"Alzheimer's disease 17","doid":"DOID:0110049","cat":null},
+  {"gene":"TREM2","disease":"syphilis","doid":"DOID:4166","cat":null}
+];
+
+const EVIDENCE_COUNTS = [
+  {"gene_symbol":"APP","evidence_count":145},
+  {"gene_symbol":"BACE1","evidence_count":16},
+  {"gene_symbol":"C9orf72","evidence_count":1},
+  {"gene_symbol":"FUS","evidence_count":175},
+  {"gene_symbol":"GBA1","evidence_count":70},
+  {"gene_symbol":"GRN","evidence_count":79},
+  {"gene_symbol":"HTT","evidence_count":66},
+  {"gene_symbol":"LRRK2","evidence_count":179},
+  {"gene_symbol":"MAPT","evidence_count":365},
+  {"gene_symbol":"PARK7","evidence_count":12},
+  {"gene_symbol":"PINK1","evidence_count":18},
+  {"gene_symbol":"PSEN1","evidence_count":54},
+  {"gene_symbol":"SNCA","evidence_count":219},
+  {"gene_symbol":"SOD1","evidence_count":12},
+  {"gene_symbol":"TARDBP","evidence_count":82},
+  {"gene_symbol":"TREM2","evidence_count":8}
+];
+
+const NEURO_RE = /(alzheimer|parkinson|huntington|amyotrophic|dementia|neurodegenerat|prion|ataxia|sclerosis|lewy|tau|amyloid|encephalopath|pick)/i;
+
+const PTM_COLORS = {
+  'phosphorylation': '#ff6b6b',
+  'N-linked glycosylation': '#4ade80',
+  'O-linked glycosylation': '#22d3ee'
+};
+
+// ==============================================================
+// BUILD GRAPH DATA
+// ==============================================================
+function buildGraph(neuroOnly) {
+  const nodes = [];
+  const links = [];
+  const nodeMap = new Map();
+
+  // Gene total PTM counts
+  const genePtmTotals = {};
+  PTM_COUNTS.forEach(p => {
+    genePtmTotals[p.gene_symbol] = (genePtmTotals[p.gene_symbol] || 0) + p.count;
+  });
+
+  // Evidence map
+  const evidenceMap = {};
+  EVIDENCE_COUNTS.forEach(e => { evidenceMap[e.gene_symbol] = e.evidence_count; });
+
+  // PTM map per gene
+  const genePtmMap = {};
+  PTM_COUNTS.forEach(p => {
+    if (!genePtmMap[p.gene_symbol]) genePtmMap[p.gene_symbol] = {};
+    genePtmMap[p.gene_symbol][p.ptm_type] = p.count;
+  });
+
+  // Disease-to-gene connections count
+  const diseaseGeneCount = {};
+  PROTEIN_DISEASE.forEach(pd => {
+    if (!diseaseGeneCount[pd.doid]) diseaseGeneCount[pd.doid] = new Set();
+    diseaseGeneCount[pd.doid].add(pd.gene);
+  });
+
+  // Determine which diseases to include
+  const diseaseInclude = new Set();
+  PROTEIN_DISEASE.forEach(pd => {
+    const isNeuro = NEURO_RE.test(pd.disease) || pd.cat === 'neurodegenerative';
+    if (neuroOnly) {
+      if (isNeuro) diseaseInclude.add(pd.doid);
+    } else {
+      // Show diseases that connect to 2+ genes, OR are neurodegenerative
+      if (diseaseGeneCount[pd.doid].size >= 2 || isNeuro) {
+        diseaseInclude.add(pd.doid);
+      }
+    }
+  });
+
+  // 1. Add Gene nodes
+  PROTEINS.forEach(p => {
+    const id = 'gene_' + p.gene_symbol;
+    const totalPtm = genePtmTotals[p.gene_symbol] || 1;
+    const node = {
+      id, type: 'gene',
+      gene: p.gene_symbol,
+      accession: p.uniprot_accession,
+      name: p.protein_name,
+      totalPtm,
+      evidence: evidenceMap[p.gene_symbol] || 0,
+      ptmBreakdown: genePtmMap[p.gene_symbol] || {},
+      radius: Math.max(14, Math.min(32, 8 + Math.sqrt(totalPtm) * 3))
+    };
+    nodes.push(node);
+    nodeMap.set(id, node);
+  });
+
+  // 2. Add PTM Type nodes
+  const ptmTypes = ['phosphorylation', 'N-linked glycosylation', 'O-linked glycosylation'];
+  ptmTypes.forEach(pt => {
+    const id = 'ptm_' + pt;
+    const node = {
+      id, type: 'ptm',
+      ptmType: pt,
+      label: pt.charAt(0).toUpperCase() + pt.slice(1),
+      color: PTM_COLORS[pt],
+      radius: 18
+    };
+    nodes.push(node);
+    nodeMap.set(id, node);
+  });
+
+  // 3. Add Disease nodes (filtered)
+  const diseaseNodes = {};
+  PROTEIN_DISEASE.forEach(pd => {
+    if (!diseaseInclude.has(pd.doid)) return;
+    if (!diseaseNodes[pd.doid]) {
+      const isNeuro = NEURO_RE.test(pd.disease) || pd.cat === 'neurodegenerative';
+      diseaseNodes[pd.doid] = {
+        id: 'disease_' + pd.doid,
+        type: 'disease',
+        disease: pd.disease,
+        doid: pd.doid,
+        isNeuro,
+        geneConnections: new Set(),
+        radius: 10
+      };
+    }
+    diseaseNodes[pd.doid].geneConnections.add(pd.gene);
+  });
+  Object.values(diseaseNodes).forEach(dn => {
+    dn.connectionCount = dn.geneConnections.size;
+    dn.geneConnections = Array.from(dn.geneConnections);
+    dn.radius = Math.max(6, Math.min(20, 4 + dn.connectionCount * 3));
+    nodes.push(dn);
+    nodeMap.set(dn.id, dn);
+  });
+
+  // 4. Gene-PTM links
+  PTM_COUNTS.forEach(p => {
+    const geneId = 'gene_' + p.gene_symbol;
+    const ptmId = 'ptm_' + p.ptm_type;
+    if (nodeMap.has(geneId) && nodeMap.has(ptmId)) {
+      links.push({
+        source: geneId,
+        target: ptmId,
+        type: 'gene-ptm',
+        ptmType: p.ptm_type,
+        count: p.count,
+        color: PTM_COLORS[p.ptm_type],
+        width: Math.max(1, Math.min(6, Math.sqrt(p.count)))
+      });
+    }
+  });
+
+  // 5. Gene-Disease links
+  PROTEIN_DISEASE.forEach(pd => {
+    if (!diseaseInclude.has(pd.doid)) return;
+    const geneId = 'gene_' + pd.gene;
+    const diseaseId = 'disease_' + pd.doid;
+    if (nodeMap.has(geneId) && nodeMap.has(diseaseId)) {
+      links.push({
+        source: geneId,
+        target: diseaseId,
+        type: 'gene-disease',
+        color: '#444',
+        width: 1
+      });
+    }
+  });
+
+  return { nodes, links, nodeMap };
+}
+
+// ==============================================================
+// VISUALIZATION
+// ==============================================================
+let simulation, svg, g, linkG, nodeG, labelG;
+let currentGraph = null;
+let selectedNode = null;
+let showPtmEdges = true;
+let showDiseaseEdges = true;
+let showLabels = true;
+let neuroOnly = true;
+
+function initNetwork() {
+  const container = document.getElementById('networkArea');
+  const width = container.clientWidth;
+  const height = container.clientHeight;
+
+  svg = d3.select('#networkArea')
+    .append('svg')
+    .attr('width', width)
+    .attr('height', height);
+
+  // Zoom
+  const zoom = d3.zoom()
+    .scaleExtent([0.1, 5])
+    .on('zoom', (event) => {
+      g.attr('transform', event.transform);
+    });
+  svg.call(zoom);
+
+  // Click on background to deselect
+  svg.on('click', (event) => {
+    if (event.target === svg.node()) {
+      clearHighlight();
+      closeDetail();
+    }
+  });
+
+  g = svg.append('g');
+  linkG = g.append('g').attr('class', 'links');
+  nodeG = g.append('g').attr('class', 'nodes');
+  labelG = g.append('g').attr('class', 'labels');
+
+  // Arrowhead marker for disease edges (optional, skip for cleaner look)
+
+  rebuildGraph();
+
+  // Fit to view after some ticks
+  setTimeout(() => {
+    const transform = d3.zoomIdentity.translate(width / 2, height / 2).scale(0.85);
+    svg.transition().duration(500).call(zoom.transform, transform);
+  }, 200);
+}
+
+function rebuildGraph() {
+  const container = document.getElementById('networkArea');
+  const width = container.clientWidth;
+  const height = container.clientHeight;
+
+  currentGraph = buildGraph(neuroOnly);
+  const { nodes, links } = currentGraph;
+
+  // Update stats
+  const visibleLinks = links.filter(l => {
+    if (l.type === 'gene-ptm' && !showPtmEdges) return false;
+    if (l.type === 'gene-disease' && !showDiseaseEdges) return false;
+    return true;
+  });
+  document.getElementById('statNodes').textContent = nodes.length;
+  document.getElementById('statEdges').textContent = visibleLinks.length;
+  document.getElementById('statDiseases').textContent = nodes.filter(n => n.type === 'disease').length;
+
+  // Stop existing simulation
+  if (simulation) simulation.stop();
+
+  // Force simulation
+  simulation = d3.forceSimulation(nodes)
+    .force('link', d3.forceLink(links).id(d => d.id).distance(d => {
+      if (d.type === 'gene-ptm') return 120;
+      return 80;
+    }).strength(d => {
+      if (d.type === 'gene-ptm') return 0.3;
+      return 0.15;
+    }))
+    .force('charge', d3.forceManyBody().strength(d => {
+      if (d.type === 'gene') return -300;
+      if (d.type === 'ptm') return -400;
+      return -80;
+    }))
+    .force('center', d3.forceCenter(0, 0))
+    .force('collision', d3.forceCollide().radius(d => d.radius + 4))
+    .force('x', d3.forceX(d => {
+      if (d.type === 'ptm') return -250;
+      if (d.type === 'disease') return 200;
+      return 0;
+    }).strength(0.05))
+    .force('y', d3.forceY(0).strength(0.02))
+    .alphaDecay(0.02)
+    .velocityDecay(0.4);
+
+  // Draw links
+  linkG.selectAll('*').remove();
+  const link = linkG.selectAll('line')
+    .data(links)
+    .join('line')
+    .attr('stroke', d => d.color)
+    .attr('stroke-width', d => d.width)
+    .attr('stroke-opacity', d => {
+      if (d.type === 'gene-ptm') return showPtmEdges ? 0.5 : 0;
+      if (d.type === 'gene-disease') return showDiseaseEdges ? 0.25 : 0;
+      return 0.3;
+    })
+    .attr('class', d => 'link link-' + d.type);
+
+  // Draw nodes
+  nodeG.selectAll('*').remove();
+  const node = nodeG.selectAll('g')
+    .data(nodes)
+    .join('g')
+    .attr('class', d => 'node node-' + d.type)
+    .style('cursor', 'pointer')
+    .call(d3.drag()
+      .on('start', dragstarted)
+      .on('drag', dragged)
+      .on('end', dragended));
+
+  // Gene nodes: circles
+  node.filter(d => d.type === 'gene')
+    .append('circle')
+    .attr('r', d => d.radius)
+    .attr('fill', '#6c8aff')
+    .attr('stroke', '#8fa4ff')
+    .attr('stroke-width', 2)
+    .attr('opacity', 0.9);
+
+  // PTM nodes: rounded squares
+  node.filter(d => d.type === 'ptm')
+    .append('rect')
+    .attr('x', d => -d.radius)
+    .attr('y', d => -d.radius)
+    .attr('width', d => d.radius * 2)
+    .attr('height', d => d.radius * 2)
+    .attr('rx', 4)
+    .attr('fill', d => d.color)
+    .attr('stroke', d => d3.color(d.color).brighter(0.5))
+    .attr('stroke-width', 2)
+    .attr('opacity', 0.9);
+
+  // Disease nodes: diamonds (rotated squares)
+  node.filter(d => d.type === 'disease')
+    .append('rect')
+    .attr('x', d => -d.radius * 0.7)
+    .attr('y', d => -d.radius * 0.7)
+    .attr('width', d => d.radius * 1.4)
+    .attr('height', d => d.radius * 1.4)
+    .attr('rx', 2)
+    .attr('transform', 'rotate(45)')
+    .attr('fill', d => d.isNeuro ? '#f472b6' : '#9498ad')
+    .attr('stroke', d => d.isNeuro ? '#f9a8d4' : '#b0b4c4')
+    .attr('stroke-width', 1.5)
+    .attr('opacity', 0.85);
+
+  // Labels
+  labelG.selectAll('*').remove();
+  const label = labelG.selectAll('text')
+    .data(nodes)
+    .join('text')
+    .attr('class', d => d.type === 'gene' ? 'node-label node-label-gene' : 'node-label')
+    .attr('dy', d => {
+      if (d.type === 'gene') return d.radius + 14;
+      if (d.type === 'ptm') return d.radius + 14;
+      return d.radius + 10;
+    })
+    .attr('font-size', d => {
+      if (d.type === 'gene') return '12px';
+      if (d.type === 'ptm') return '11px';
+      return '9px';
+    })
+    .attr('fill', d => {
+      if (d.type === 'gene') return '#e2e4eb';
+      if (d.type === 'ptm') return d.color;
+      return d.isNeuro ? '#f472b6' : '#9498ad';
+    })
+    .attr('font-weight', d => d.type === 'gene' ? '600' : '400')
+    .attr('display', showLabels ? null : 'none')
+    .text(d => {
+      if (d.type === 'gene') return d.gene;
+      if (d.type === 'ptm') return d.label;
+      // Truncate long disease names
+      const name = d.disease;
+      return name.length > 22 ? name.substring(0, 20) + '...' : name;
+    });
+
+  // Events
+  node.on('mouseenter', (event, d) => showTooltip(event, d))
+      .on('mousemove', (event) => moveTooltip(event))
+      .on('mouseleave', () => hideTooltip())
+      .on('click', (event, d) => {
+        event.stopPropagation();
+        onNodeClick(d);
+      });
+
+  // Tick
+  simulation.on('tick', () => {
+    link
+      .attr('x1', d => d.source.x)
+      .attr('y1', d => d.source.y)
+      .attr('x2', d => d.target.x)
+      .attr('y2', d => d.target.y);
+
+    node.attr('transform', d => `translate(${d.x},${d.y})`);
+    label.attr('x', d => d.x).attr('y', d => d.y);
+  });
+}
+
+function dragstarted(event, d) {
+  if (!event.active) simulation.alphaTarget(0.3).restart();
+  d.fx = d.x;
+  d.fy = d.y;
+}
+
+function dragged(event, d) {
+  d.fx = event.x;
+  d.fy = event.y;
+}
+
+function dragended(event, d) {
+  if (!event.active) simulation.alphaTarget(0);
+  d.fx = null;
+  d.fy = null;
+}
+
+// ==============================================================
+// TOOLTIP
+// ==============================================================
+function showTooltip(event, d) {
+  const tip = document.getElementById('tooltip');
+  let html = '';
+
+  if (d.type === 'gene') {
+    html = `<div class="tt-name">${d.gene}</div>
+      <div class="tt-type">${d.name}</div>
+      <div class="tt-detail">${d.accession}<br>
+      Total PTM sites: ${d.totalPtm}<br>
+      Evidence records: ${d.evidence}</div>`;
+  } else if (d.type === 'ptm') {
+    html = `<div class="tt-name">${d.label}</div>
+      <div class="tt-type">PTM Type</div>`;
+  } else if (d.type === 'disease') {
+    html = `<div class="tt-name">${d.disease}</div>
+      <div class="tt-type">${d.doid} ${d.isNeuro ? '(Neurodegenerative)' : ''}</div>
+      <div class="tt-detail">Connected genes: ${d.geneConnections.join(', ')}</div>`;
+  }
+
+  tip.innerHTML = html;
+  tip.style.display = 'block';
+  moveTooltip(event);
+  highlightNode(d);
+}
+
+function moveTooltip(event) {
+  const tip = document.getElementById('tooltip');
+  const area = document.getElementById('networkArea');
+  const rect = area.getBoundingClientRect();
+  let x = event.clientX - rect.left + 15;
+  let y = event.clientY - rect.top - 10;
+  if (x + 300 > rect.width) x = x - 330;
+  if (y + 100 > rect.height) y = y - 100;
+  tip.style.left = x + 'px';
+  tip.style.top = y + 'px';
+}
+
+function hideTooltip() {
+  document.getElementById('tooltip').style.display = 'none';
+  if (!selectedNode) clearHighlight();
+}
+
+// ==============================================================
+// HIGHLIGHT
+// ==============================================================
+function highlightNode(d) {
+  const connectedIds = new Set([d.id]);
+  currentGraph.links.forEach(l => {
+    const sid = typeof l.source === 'string' ? l.source : l.source.id;
+    const tid = typeof l.target === 'string' ? l.target : l.target.id;
+    if (sid === d.id) connectedIds.add(tid);
+    if (tid === d.id) connectedIds.add(sid);
+  });
+
+  nodeG.selectAll('.node').style('opacity', n => connectedIds.has(n.id) ? 1 : 0.15);
+  labelG.selectAll('.node-label').style('opacity', n => connectedIds.has(n.id) ? 1 : 0.08);
+  linkG.selectAll('line').style('opacity', l => {
+    const sid = typeof l.source === 'string' ? l.source : l.source.id;
+    const tid = typeof l.target === 'string' ? l.target : l.target.id;
+    if (sid === d.id || tid === d.id) {
+      if (l.type === 'gene-ptm' && !showPtmEdges) return 0;
+      if (l.type === 'gene-disease' && !showDiseaseEdges) return 0;
+      return 0.8;
+    }
+    return 0.04;
+  });
+}
+
+function clearHighlight() {
+  if (selectedNode) return; // keep selection highlight
+  nodeG.selectAll('.node').style('opacity', 1);
+  labelG.selectAll('.node-label').style('opacity', 1);
+  linkG.selectAll('line').style('opacity', l => {
+    if (l.type === 'gene-ptm') return showPtmEdges ? 0.5 : 0;
+    if (l.type === 'gene-disease') return showDiseaseEdges ? 0.25 : 0;
+    return 0.3;
+  });
+}
+
+// ==============================================================
+// NODE CLICK & DETAIL PANEL
+// ==============================================================
+function onNodeClick(d) {
+  selectedNode = d;
+  highlightNode(d);
+
+  const panel = document.getElementById('detailPanel');
+  const title = document.getElementById('detailTitle');
+  const body = document.getElementById('detailBody');
+  panel.classList.remove('collapsed');
+
+  if (d.type === 'gene') {
+    title.innerHTML = `<span style="color:var(--accent)">${d.gene}</span>`;
+    let html = `
+      <div class="label">Protein</div>
+      <div class="value">${d.name}</div>
+      <div class="label">UniProt</div>
+      <div class="value"><a href="https://www.uniprot.org/uniprot/${d.accession}" target="_blank">${d.accession}</a></div>
+      <div class="label">Total PTM Sites</div>
+      <div class="value" style="font-size:22px; font-weight:700;">${d.totalPtm}</div>
+      <div class="label">PTM Breakdown</div>`;
+
+    const maxCount = Math.max(...Object.values(d.ptmBreakdown), 1);
+    for (const [ptm, count] of Object.entries(d.ptmBreakdown).sort((a,b) => b[1] - a[1])) {
+      const color = PTM_COLORS[ptm] || '#94a3b8';
+      const pct = (count / maxCount * 100).toFixed(0);
+      html += `<div class="ptm-bar">
+        <div class="ptm-bar-label">${ptm.replace('phosphorylation','Phospho').replace('N-linked glycosylation','N-glyco').replace('O-linked glycosylation','O-glyco')}</div>
+        <div class="ptm-bar-track">
+          <div class="ptm-bar-fill" style="width:${pct}%; background:${color};">${count}</div>
+        </div>
+      </div>`;
+    }
+
+    html += `<div class="label">Evidence Records</div>
+      <div class="value">${d.evidence}</div>
+      <div class="label">Diseases</div>`;
+
+    // Get diseases for this gene
+    const diseases = PROTEIN_DISEASE.filter(pd => pd.gene === d.gene);
+    const neuro = diseases.filter(pd => NEURO_RE.test(pd.disease) || pd.cat === 'neurodegenerative');
+    const other = diseases.filter(pd => !NEURO_RE.test(pd.disease) && pd.cat !== 'neurodegenerative');
+
+    if (neuro.length > 0) {
+      html += '<div style="margin-bottom:4px;font-size:11px;color:var(--pink);font-weight:600;">Neurodegenerative</div>';
+      neuro.forEach(pd => {
+        html += `<span class="disease-chip neuro" onclick="focusDisease('${pd.doid}')">${pd.disease}</span>`;
+      });
+    }
+    if (other.length > 0) {
+      html += '<div style="margin-top:6px;margin-bottom:4px;font-size:11px;color:var(--text2);font-weight:600;">Other</div>';
+      other.forEach(pd => {
+        html += `<span class="disease-chip other" onclick="focusDisease('${pd.doid}')">${pd.disease}</span>`;
+      });
+    }
+
+    body.innerHTML = html;
+
+  } else if (d.type === 'disease') {
+    title.innerHTML = `<span style="color:var(--pink)">${d.disease}</span>`;
+    let html = `
+      <div class="label">Disease Ontology ID</div>
+      <div class="value"><a href="https://disease-ontology.org/term/${d.doid}" target="_blank">${d.doid}</a></div>
+      <div class="label">Category</div>
+      <div class="value">${d.isNeuro ? '<span style="color:var(--pink)">Neurodegenerative</span>' : 'Other'}</div>
+      <div class="label">Connected Genes (${d.geneConnections.length})</div>`;
+
+    d.geneConnections.forEach(gene => {
+      const prot = PROTEINS.find(p => p.gene_symbol === gene);
+      const ptms = PTM_COUNTS.filter(p => p.gene_symbol === gene);
+      const total = ptms.reduce((s, p) => s + p.count, 0);
+      html += `<div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:10px;margin-bottom:6px;cursor:pointer;" onclick="focusGene('${gene}')">
+        <div style="font-weight:600;color:var(--accent)">${gene}</div>
+        <div style="font-size:11px;color:var(--text2)">${prot ? prot.protein_name : ''}</div>
+        <div style="font-size:11px;color:var(--text2);margin-top:4px">${total} PTM sites</div>
+      </div>`;
+    });
+
+    body.innerHTML = html;
+
+  } else if (d.type === 'ptm') {
+    title.innerHTML = `<span style="color:${d.color}">${d.label}</span>`;
+    let html = `<div class="label">PTM Type</div>
+      <div class="value">${d.label}</div>
+      <div class="label">Genes with this PTM</div>`;
+
+    const genesWithPtm = PTM_COUNTS.filter(p => p.ptm_type === d.ptmType).sort((a,b) => b.count - a.count);
+    const maxC = Math.max(...genesWithPtm.map(g => g.count), 1);
+    genesWithPtm.forEach(gp => {
+      const pct = (gp.count / maxC * 100).toFixed(0);
+      html += `<div class="ptm-bar" style="cursor:pointer" onclick="focusGene('${gp.gene_symbol}')">
+        <div class="ptm-bar-label" style="color:var(--accent)">${gp.gene_symbol}</div>
+        <div class="ptm-bar-track">
+          <div class="ptm-bar-fill" style="width:${pct}%; background:${d.color};">${gp.count}</div>
+        </div>
+      </div>`;
+    });
+
+    body.innerHTML = html;
+  }
+}
+
+function closeDetail() {
+  document.getElementById('detailPanel').classList.add('collapsed');
+  selectedNode = null;
+  clearHighlight();
+}
+
+function focusGene(gene) {
+  const node = currentGraph.nodes.find(n => n.type === 'gene' && n.gene === gene);
+  if (node) onNodeClick(node);
+}
+
+function focusDisease(doid) {
+  const node = currentGraph.nodes.find(n => n.type === 'disease' && n.doid === doid);
+  if (node) {
+    onNodeClick(node);
+  }
+}
+
+// ==============================================================
+// FILTERS & SEARCH
+// ==============================================================
+document.getElementById('toggleNeuroOnly').addEventListener('change', function() {
+  neuroOnly = this.checked;
+  selectedNode = null;
+  closeDetail();
+  rebuildGraph();
+});
+
+document.getElementById('togglePtmEdges').addEventListener('change', function() {
+  showPtmEdges = this.checked;
+  linkG.selectAll('.link-gene-ptm')
+    .transition().duration(300)
+    .attr('stroke-opacity', showPtmEdges ? 0.5 : 0);
+  updateStats();
+});
+
+document.getElementById('toggleDiseaseEdges').addEventListener('change', function() {
+  showDiseaseEdges = this.checked;
+  linkG.selectAll('.link-gene-disease')
+    .transition().duration(300)
+    .attr('stroke-opacity', showDiseaseEdges ? 0.25 : 0);
+  updateStats();
+});
+
+document.getElementById('toggleLabels').addEventListener('change', function() {
+  showLabels = this.checked;
+  labelG.selectAll('.node-label')
+    .attr('display', showLabels ? null : 'none');
+});
+
+function updateStats() {
+  if (!currentGraph) return;
+  const visibleLinks = currentGraph.links.filter(l => {
+    if (l.type === 'gene-ptm' && !showPtmEdges) return false;
+    if (l.type === 'gene-disease' && !showDiseaseEdges) return false;
+    return true;
+  });
+  document.getElementById('statEdges').textContent = visibleLinks.length;
+}
+
+// Search
+let searchTimeout;
+document.getElementById('searchBox').addEventListener('input', function() {
+  clearTimeout(searchTimeout);
+  const q = this.value.trim().toLowerCase();
+  searchTimeout = setTimeout(() => {
+    if (!q) {
+      clearHighlight();
+      selectedNode = null;
+      return;
+    }
+
+    // Find matching node
+    const match = currentGraph.nodes.find(n => {
+      if (n.type === 'gene') return n.gene.toLowerCase().includes(q) || n.name.toLowerCase().includes(q);
+      if (n.type === 'disease') return n.disease.toLowerCase().includes(q) || n.doid.toLowerCase().includes(q);
+      if (n.type === 'ptm') return n.label.toLowerCase().includes(q);
+      return false;
+    });
+
+    if (match) {
+      onNodeClick(match);
+      // Pan to node
+      const container = document.getElementById('networkArea');
+      const width = container.clientWidth;
+      const height = container.clientHeight;
+      const transform = d3.zoomIdentity
+        .translate(width / 2 - match.x * 0.85, height / 2 - match.y * 0.85)
+        .scale(0.85);
+      svg.transition().duration(500).call(
+        d3.zoom().scaleExtent([0.1, 5]).on('zoom', (event) => {
+          g.attr('transform', event.transform);
+        }).transform,
+        transform
+      );
+    }
+  }, 300);
+});
+
+// ==============================================================
+// RESIZE
+// ==============================================================
+window.addEventListener('resize', () => {
+  const container = document.getElementById('networkArea');
+  svg.attr('width', container.clientWidth).attr('height', container.clientHeight);
+});
+
+// ==============================================================
+// INIT
+// ==============================================================
+initNetwork();
+</script>
+</body>
+</html>

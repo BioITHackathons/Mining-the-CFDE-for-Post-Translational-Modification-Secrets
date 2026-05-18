@@ -1278,6 +1278,23 @@ function renderPTMMap() {
     ctx.beginPath(); ctx.moveTo(x, trackY - 2); ctx.lineTo(x, trackY + trackH + 2); ctx.stroke();
   }
 
+  // ---- Pre-compute disease-relevant PTM positions for filter highlighting ----
+  const snvs = d.snv || [];
+  const disSNVs = snvs.filter(s => s.disease && s.disease.length > 0);
+  // PTM positions near a disease SNV that matches the active filter
+  const diseaseRelevantPTMPositions = new Set();
+  if (diseaseFilter) {
+    const matchingSNVs = disSNVs.filter(s => s.start_pos && s.disease.some(dd => matchesDiseaseFilter(dd.recommended_name?.name || '')));
+    for (const s of matchingSNVs) {
+      // Mark all PTM positions within 5aa as disease-relevant
+      for (const ptm of d.ptms) {
+        if (Math.abs(ptm.position - s.start_pos) <= 5) {
+          diseaseRelevantPTMPositions.add(ptm.position);
+        }
+      }
+    }
+  }
+
   // ---- PTM markers (above track) ----
   const types = [...new Set(d.ptms.map(p => p.type))];
   const typeGroups = {};
@@ -1293,17 +1310,28 @@ function renderPTMMap() {
     for (const ptm of ptms) {
       const x = scale(ptm.position);
       const my = trackY + yOff;
-      ctx.strokeStyle = color + '40'; ctx.lineWidth = 1;
+      const isRelevant = !diseaseFilter || diseaseRelevantPTMPositions.has(ptm.position);
+      const dimAlpha = diseaseFilter ? (isRelevant ? 1 : 0.15) : 1;
+      const radius = diseaseFilter && isRelevant ? 5.5 : 3.5;
+      const lineW = diseaseFilter && isRelevant ? 2 : 1;
+
+      ctx.globalAlpha = dimAlpha;
+      ctx.strokeStyle = color + (diseaseFilter && isRelevant ? '90' : '40');
+      ctx.lineWidth = lineW;
       ctx.beginPath(); ctx.moveTo(x, trackY); ctx.lineTo(x, my); ctx.stroke();
-      ctx.beginPath(); ctx.arc(x, my, 3.5, 0, Math.PI * 2); ctx.fillStyle = color; ctx.fill();
-      markers.push({ x, y: my, r: 5, ptm, color, kind: 'ptm' });
+      ctx.beginPath(); ctx.arc(x, my, radius, 0, Math.PI * 2);
+      ctx.fillStyle = color; ctx.fill();
+      if (diseaseFilter && isRelevant) {
+        ctx.strokeStyle = '#fff40'; ctx.lineWidth = 1.5;
+        ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+      markers.push({ x, y: my, r: radius + 2, ptm, color, kind: 'ptm' });
     }
     li++;
   }
 
   // ---- SNV markers (below track) ----
-  const snvs = d.snv || [];
-  const disSNVs = snvs.filter(s => s.disease && s.disease.length > 0);
   const nonDisSNVs = snvs.filter(s => !s.disease || s.disease.length === 0);
   const snvBaseY = trackY + trackH + 16;
 
@@ -1360,12 +1388,23 @@ function renderPTMMap() {
 
   // Title
   ctx.fillStyle = '#e2e4eb'; ctx.font = 'bold 13px system-ui'; ctx.textAlign = 'left';
-  ctx.fillText(`${d.geneName} (${d.length} aa)`, pad.left, 16);
+  let titleX = pad.left;
+  ctx.fillText(`${d.geneName} (${d.length} aa)`, titleX, 16);
+  titleX += ctx.measureText(`${d.geneName} (${d.length} aa)  `).width;
 
   // Source badges
   ctx.font = '10px system-ui';
-  if (d.sources?.glygen) { ctx.fillStyle = '#4ecdc4'; ctx.fillText('GlyGen', pad.left + ctx.measureText(d.geneName + ` (${d.length} aa)  `).width + 10, 16); }
-  if (d.sources?.uniprot) { ctx.fillStyle = '#6c8aff'; ctx.fillText('UniProt', pad.left + ctx.measureText(d.geneName + ` (${d.length} aa)  GlyGen  `).width + 20, 16); }
+  if (d.sources?.glygen) { ctx.fillStyle = '#4ecdc4'; ctx.fillText('GlyGen', titleX + 4, 16); titleX += ctx.measureText('GlyGen  ').width + 8; }
+  if (d.sources?.uniprot) { ctx.fillStyle = '#6c8aff'; ctx.fillText('UniProt', titleX + 4, 16); titleX += ctx.measureText('UniProt  ').width + 8; }
+
+  // Disease filter indicator on canvas
+  if (diseaseFilter && diseaseRelevantPTMPositions.size > 0) {
+    ctx.fillStyle = '#f59e0b'; ctx.font = 'bold 10px system-ui';
+    ctx.fillText(`Filter: ${diseaseFilter} (${diseaseRelevantPTMPositions.size} PTMs highlighted)`, titleX + 10, 16);
+  } else if (diseaseFilter) {
+    ctx.fillStyle = '#f59e0b80'; ctx.font = '10px system-ui';
+    ctx.fillText(`Filter: ${diseaseFilter} (no PTMs near matching SNVs)`, titleX + 10, 16);
+  }
 
   // Hover
   const tooltip = document.getElementById('mapTooltip');
