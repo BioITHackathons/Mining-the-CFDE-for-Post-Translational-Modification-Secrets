@@ -1,0 +1,1035 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GlyGen PTM Explorer - Neurodegenerative Diseases</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --surface2: #242736;
+    --border: #2e3140;
+    --text: #e0e0e6;
+    --text2: #9ca0b0;
+    --accent: #6c8cff;
+    --accent2: #4a6ade;
+    --green: #4ade80;
+    --orange: #f59e0b;
+    --red: #ef4444;
+    --cyan: #22d3ee;
+    --purple: #a78bfa;
+    --pink: #f472b6;
+    --radius: 8px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.5;
+    min-height: 100vh;
+  }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  /* Header */
+  .header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 16px 24px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  .header h1 {
+    font-size: 20px;
+    font-weight: 600;
+    flex: 1;
+  }
+  .header h1 span { color: var(--accent); }
+  .header .subtitle { color: var(--text2); font-size: 13px; }
+  .badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+  }
+  .badge-live { background: rgba(74,222,128,0.15); color: var(--green); }
+
+  /* Layout */
+  .app { display: flex; height: calc(100vh - 56px); }
+  .sidebar {
+    width: 340px;
+    min-width: 340px;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+  }
+  .main { flex: 1; overflow-y: auto; padding: 20px; }
+
+  /* Sidebar sections */
+  .section { padding: 16px; border-bottom: 1px solid var(--border); }
+  .section-title {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--text2);
+    margin-bottom: 10px;
+    font-weight: 600;
+  }
+
+  /* Form elements */
+  label { display: block; font-size: 13px; color: var(--text2); margin-bottom: 4px; }
+  select, input[type="text"] {
+    width: 100%;
+    padding: 8px 10px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text);
+    font-size: 13px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  select:focus, input[type="text"]:focus { border-color: var(--accent); }
+  select { cursor: pointer; }
+  .form-row { margin-bottom: 12px; }
+
+  /* Preset proteins */
+  .preset-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .preset-btn {
+    padding: 4px 10px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    color: var(--text);
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .preset-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .preset-btn.active { background: var(--accent2); border-color: var(--accent); color: #fff; }
+
+  /* Buttons */
+  .btn {
+    padding: 10px 20px;
+    border: none;
+    border-radius: var(--radius);
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .btn-primary { background: var(--accent2); color: #fff; width: 100%; justify-content: center; }
+  .btn-primary:hover { background: var(--accent); }
+  .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn-sm { padding: 4px 10px; font-size: 12px; }
+  .btn-outline {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text2);
+  }
+  .btn-outline:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* Results cards */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    margin-bottom: 16px;
+    overflow: hidden;
+  }
+  .card-header {
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .card-header h3 { font-size: 15px; font-weight: 600; flex: 1; }
+  .card-body { padding: 16px; }
+
+  /* Stats row */
+  .stats-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+  .stat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px;
+    text-align: center;
+  }
+  .stat-value { font-size: 28px; font-weight: 700; }
+  .stat-label { font-size: 12px; color: var(--text2); margin-top: 4px; }
+
+  /* Table */
+  .table-wrap { overflow-x: auto; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  th {
+    text-align: left;
+    padding: 10px 12px;
+    background: var(--surface2);
+    border-bottom: 1px solid var(--border);
+    font-weight: 600;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text2);
+    white-space: nowrap;
+    cursor: pointer;
+    user-select: none;
+  }
+  th:hover { color: var(--accent); }
+  td {
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  tr:hover td { background: rgba(108,140,255,0.05); }
+  .ptm-type-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .ptm-glyc { background: rgba(74,222,128,0.15); color: var(--green); }
+  .ptm-phos { background: rgba(167,139,250,0.15); color: var(--purple); }
+  .ptm-snv { background: rgba(239,68,68,0.15); color: var(--red); }
+  .ptm-other { background: rgba(34,211,238,0.15); color: var(--cyan); }
+
+  /* Position track */
+  .track-container {
+    position: relative;
+    height: 120px;
+    margin: 10px 0;
+  }
+  .track-axis {
+    position: absolute;
+    bottom: 0;
+    left: 40px;
+    right: 10px;
+    height: 2px;
+    background: var(--border);
+  }
+  .track-label {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    font-size: 10px;
+    color: var(--text2);
+  }
+  .track-svg {
+    width: 100%;
+    height: 100%;
+  }
+
+  /* Tabs */
+  .tabs {
+    display: flex;
+    gap: 0;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 16px;
+  }
+  .tab {
+    padding: 8px 16px;
+    font-size: 13px;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    color: var(--text2);
+    transition: all 0.2s;
+  }
+  .tab:hover { color: var(--text); }
+  .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+  /* Loading */
+  .loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+    gap: 12px;
+    color: var(--text2);
+  }
+  .spinner {
+    width: 20px; height: 20px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Empty state */
+  .empty {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--text2);
+  }
+  .empty h3 { font-size: 16px; margin-bottom: 8px; color: var(--text); }
+  .empty p { font-size: 13px; max-width: 400px; margin: 0 auto; }
+
+  /* Error */
+  .error-msg {
+    background: rgba(239,68,68,0.1);
+    border: 1px solid rgba(239,68,68,0.3);
+    padding: 12px 16px;
+    border-radius: var(--radius);
+    color: var(--red);
+    font-size: 13px;
+    margin: 16px 0;
+  }
+
+  /* Tooltip */
+  .tooltip {
+    position: fixed;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 10px 14px;
+    font-size: 12px;
+    z-index: 1000;
+    pointer-events: none;
+    max-width: 300px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+    display: none;
+  }
+  .tooltip .tip-label { color: var(--text2); }
+  .tooltip .tip-value { color: var(--text); font-weight: 500; }
+
+  /* Evidence pill */
+  .ev-pill {
+    display: inline-block;
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-size: 10px;
+    margin: 1px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text2);
+  }
+  .ev-pill a { color: var(--accent); }
+
+  /* Disease chips */
+  .disease-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+  .disease-chip {
+    padding: 3px 8px;
+    background: rgba(245,158,11,0.12);
+    border: 1px solid rgba(245,158,11,0.3);
+    border-radius: 4px;
+    font-size: 11px;
+    color: var(--orange);
+  }
+
+  /* PTM annotation */
+  .ptm-annot {
+    background: var(--surface2);
+    border-left: 3px solid var(--accent);
+    padding: 10px 14px;
+    margin: 8px 0;
+    font-size: 13px;
+    line-height: 1.6;
+    border-radius: 0 var(--radius) var(--radius) 0;
+  }
+
+  /* Responsive */
+  @media (max-width: 768px) {
+    .app { flex-direction: column; height: auto; }
+    .sidebar { width: 100%; min-width: 100%; border-right: none; border-bottom: 1px solid var(--border); }
+    .stats-row { grid-template-columns: repeat(2, 1fr); }
+  }
+
+  /* Filter bar in table */
+  .filter-bar {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .filter-bar input, .filter-bar select {
+    width: auto;
+    min-width: 120px;
+  }
+  .filter-count { font-size: 12px; color: var(--text2); margin-left: auto; }
+
+  /* protein info header */
+  .protein-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+    margin-bottom: 8px;
+  }
+  .protein-header .protein-meta { flex: 1; }
+  .protein-header .protein-name { font-size: 18px; font-weight: 600; }
+  .protein-header .protein-gene {
+    display: inline-block;
+    background: var(--accent2);
+    color: #fff;
+    padding: 2px 10px;
+    border-radius: 4px;
+    font-size: 13px;
+    font-weight: 600;
+    margin-right: 8px;
+  }
+  .protein-header .protein-org { color: var(--text2); font-size: 13px; }
+  .protein-header .protein-ac { color: var(--text2); font-size: 13px; }
+  .protein-links { display: flex; gap: 8px; flex-wrap: wrap; }
+  .protein-links a {
+    padding: 4px 10px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    font-size: 12px;
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1><span>GlyGen</span> PTM Explorer</h1>
+  <span class="subtitle">Post-Translational Modifications in Neurodegenerative Disease Proteins</span>
+  <span class="badge badge-live">Live API</span>
+</div>
+
+<div class="app">
+  <div class="sidebar">
+    <!-- Search section -->
+    <div class="section">
+      <div class="section-title">Search</div>
+      <div class="form-row">
+        <label>Protein (UniProt accession or gene name)</label>
+        <input type="text" id="proteinInput" placeholder="e.g. P05067, MAPT, SNCA, APP" />
+      </div>
+      <div class="form-row">
+        <label>Organism</label>
+        <select id="orgSelect">
+          <option value="9606" selected>Human (Homo sapiens)</option>
+          <option value="10090">Mouse</option>
+          <option value="10116">Rat</option>
+        </select>
+      </div>
+      <button class="btn btn-primary" id="searchBtn" onclick="doSearch()">
+        Search GlyGen
+      </button>
+    </div>
+
+    <!-- Quick Picks -->
+    <div class="section">
+      <div class="section-title">Neurodegenerative Disease Proteins</div>
+
+      <label style="margin-bottom:6px">Alzheimer's Disease</label>
+      <div class="preset-grid" style="margin-bottom:12px">
+        <button class="preset-btn" onclick="quickSearch('P05067','APP')">APP</button>
+        <button class="preset-btn" onclick="quickSearch('P49768','PSEN1')">PSEN1</button>
+        <button class="preset-btn" onclick="quickSearch('P10636','MAPT')">MAPT/Tau</button>
+        <button class="preset-btn" onclick="quickSearch('P56817','BACE1')">BACE1</button>
+        <button class="preset-btn" onclick="quickSearch('Q9NZC2','TREM2')">TREM2</button>
+        <button class="preset-btn" onclick="quickSearch('P02649','APOE')">APOE</button>
+      </div>
+
+      <label style="margin-bottom:6px">Parkinson's Disease</label>
+      <div class="preset-grid" style="margin-bottom:12px">
+        <button class="preset-btn" onclick="quickSearch('P37840','SNCA')">SNCA</button>
+        <button class="preset-btn" onclick="quickSearch('Q5S007','LRRK2')">LRRK2</button>
+        <button class="preset-btn" onclick="quickSearch('Q99497','PARK7')">PARK7/DJ-1</button>
+        <button class="preset-btn" onclick="quickSearch('Q9BXM7','PINK1')">PINK1</button>
+        <button class="preset-btn" onclick="quickSearch('P04062','GBA')">GBA</button>
+      </div>
+
+      <label style="margin-bottom:6px">ALS / Huntington's / FTD</label>
+      <div class="preset-grid">
+        <button class="preset-btn" onclick="quickSearch('P00441','SOD1')">SOD1</button>
+        <button class="preset-btn" onclick="quickSearch('Q13148','TARDBP')">TDP-43</button>
+        <button class="preset-btn" onclick="quickSearch('P35637','FUS')">FUS</button>
+        <button class="preset-btn" onclick="quickSearch('P42858','HTT')">HTT</button>
+        <button class="preset-btn" onclick="quickSearch('P04156','PRNP')">PRNP</button>
+      </div>
+    </div>
+
+    <!-- About -->
+    <div class="section">
+      <div class="section-title">About This Tool</div>
+      <p style="font-size:12px; color:var(--text2); line-height:1.6">
+        Queries the <a href="https://api.glygen.org/" target="_blank">GlyGen REST API</a> in real time
+        to retrieve glycosylation sites, phosphorylation sites, SNVs, disease associations, and PTM
+        annotations for any human protein. Focused on neurodegenerative disease proteins but works
+        for any protein in GlyGen.<br><br>
+        Data sources include UniProtKB, iPTMnet, BioMuta, UniCarbKB, PubMed, and more.
+      </p>
+    </div>
+  </div>
+
+  <div class="main" id="mainContent">
+    <div class="empty" id="emptyState">
+      <h3>Search for a protein to explore its PTMs</h3>
+      <p>Enter a UniProt accession (e.g. P05067) or click one of the preset neurodegenerative disease
+        proteins in the sidebar. The tool will query GlyGen's live API and show glycosylation,
+        phosphorylation, SNVs, and disease associations.</p>
+    </div>
+  </div>
+</div>
+
+<div class="tooltip" id="tooltip"></div>
+
+<script>
+const API = 'https://api.glygen.org';
+
+// State
+let currentData = null;
+let activePreset = null;
+
+// ---- API helpers ----
+async function apiPost(endpoint, body = {}) {
+  const r = await fetch(API + endpoint, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  if (!r.ok) throw new Error(`API error ${r.status}: ${r.statusText}`);
+  return r.json();
+}
+
+// ---- Search flow ----
+function quickSearch(ac, gene) {
+  document.getElementById('proteinInput').value = ac;
+  document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+  activePreset = ac;
+  doSearch();
+}
+
+async function doSearch() {
+  const input = document.getElementById('proteinInput').value.trim();
+  if (!input) return;
+  const main = document.getElementById('mainContent');
+  main.innerHTML = '<div class="loading"><div class="spinner"></div>Querying GlyGen API...</div>';
+  document.getElementById('searchBtn').disabled = true;
+
+  try {
+    let accession = input;
+    // If it doesn't look like a UniProt AC, try simple search
+    if (!/^[A-Z][0-9][A-Z0-9]{3}[0-9](-\d+)?$/i.test(input)) {
+      // Try protein simple search
+      const sr = await apiPost('/protein/search_simple/', {
+        term_category: 'protein',
+        term: input
+      });
+      if (sr.list_id) {
+        const lr = await apiPost('/protein/list/', {
+          id: sr.list_id, offset: 1, limit: 1, sort: 'hit_score', order: 'desc'
+        });
+        if (lr.results && lr.results.length > 0) {
+          accession = lr.results[0].uniprot_canonical_ac.replace(/-\d+$/, '');
+        } else {
+          throw new Error('No proteins found for "' + input + '". Try a UniProt accession.');
+        }
+      }
+    }
+    // Remove isoform suffix for detail query
+    const cleanAc = accession.replace(/-\d+$/, '');
+    const data = await apiPost(`/protein/detail/${cleanAc}/`, {});
+    currentData = data;
+    currentData._accession = cleanAc;
+    renderResults(data);
+  } catch (err) {
+    main.innerHTML = `<div class="error-msg">Error: ${err.message}</div>
+      <div class="empty"><p>Make sure you're using a valid UniProt accession (e.g. P05067) or gene name.
+      The protein must exist in GlyGen's database.</p></div>`;
+  }
+  document.getElementById('searchBtn').disabled = false;
+}
+
+// ---- Render ----
+function renderResults(d) {
+  const main = document.getElementById('mainContent');
+  const ac = d._accession;
+  const geneName = d.gene_names?.find(g => g.type === 'recommended')?.name || d.gene_names?.[0]?.name || '';
+  const protName = d.protein_names?.find(p => p.type === 'recommended')?.name || '';
+  const organism = d.species?.name || 'Human';
+
+  const glyc = d.glycosylation || [];
+  const phos = d.phosphorylation || [];
+  const snvs = d.snv || [];
+  const diseases = d.disease || [];
+  const ptmAnnot = d.ptm_annotation || [];
+  const seqLen = d.sequence?.length || d.mass?.protein_length || 0;
+
+  // Dedup glycosylation by position + type
+  const glycSites = dedup(glyc, e => `${e.start_pos}-${e.type}-${e.subtype}`);
+  const uniqueGlycPositions = new Set(glyc.map(g => g.start_pos)).size;
+
+  // Neuro diseases
+  const neuroDiseases = diseases.filter(dis => {
+    const name = (dis.recommended_name?.name || '').toLowerCase();
+    return /(alzheimer|parkinson|huntington|amyotrophic|dementia|neurodegenerat|prion|ataxia|sclerosis|lewy|tau|amyloid|encephalopath)/i.test(name);
+  });
+
+  main.innerHTML = `
+    <!-- Protein header -->
+    <div class="card">
+      <div class="card-body">
+        <div class="protein-header">
+          <div class="protein-meta">
+            <span class="protein-gene">${geneName}</span>
+            <span class="protein-ac">${ac}</span>
+            <span class="protein-org">&middot; ${organism}</span>
+            <div class="protein-name" style="margin-top:6px">${protName}</div>
+            ${d.refseq?.summary ? `<p style="font-size:12px; color:var(--text2); margin-top:8px; line-height:1.5">${d.refseq.summary.substring(0, 300)}${d.refseq.summary.length > 300 ? '...' : ''}</p>` : ''}
+          </div>
+          <div class="protein-links">
+            <a href="https://www.glygen.org/protein/${ac}-1" target="_blank">GlyGen</a>
+            <a href="https://www.uniprot.org/uniprotkb/${ac}" target="_blank">UniProt</a>
+            ${d.refseq?.ac ? `<a href="${d.refseq.url}" target="_blank">RefSeq</a>` : ''}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="stats-row">
+      <div class="stat-card">
+        <div class="stat-value" style="color:var(--green)">${uniqueGlycPositions}</div>
+        <div class="stat-label">Glycosylation Sites</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" style="color:var(--purple)">${phos.length}</div>
+        <div class="stat-label">Phosphorylation Sites</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" style="color:var(--red)">${snvs.length}</div>
+        <div class="stat-label">SNVs / Mutations</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" style="color:var(--orange)">${neuroDiseases.length}</div>
+        <div class="stat-label">Neuro Disease Links</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" style="color:var(--cyan)">${diseases.length}</div>
+        <div class="stat-label">Total Disease Assoc.</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" style="color:var(--text)">${seqLen}</div>
+        <div class="stat-label">Protein Length (aa)</div>
+      </div>
+    </div>
+
+    <!-- PTM Position Map -->
+    <div class="card">
+      <div class="card-header">
+        <h3>PTM Position Map</h3>
+        <span style="font-size:12px; color:var(--text2)">Protein length: ${seqLen} aa</span>
+      </div>
+      <div class="card-body">
+        <div id="trackContainer" style="position:relative"></div>
+      </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="card">
+      <div class="tabs" id="ptmTabs">
+        <div class="tab active" data-tab="glycosylation" onclick="switchTab('glycosylation')">
+          Glycosylation (${glyc.length})
+        </div>
+        <div class="tab" data-tab="phosphorylation" onclick="switchTab('phosphorylation')">
+          Phosphorylation (${phos.length})
+        </div>
+        <div class="tab" data-tab="snv" onclick="switchTab('snv')">
+          SNVs (${snvs.length})
+        </div>
+        <div class="tab" data-tab="diseases" onclick="switchTab('diseases')">
+          Diseases (${diseases.length})
+        </div>
+        <div class="tab" data-tab="annotations" onclick="switchTab('annotations')">
+          PTM Annotations (${ptmAnnot.length})
+        </div>
+      </div>
+      <div class="card-body">
+        <div id="tabContent"></div>
+      </div>
+    </div>
+  `;
+
+  drawTrack(glyc, phos, snvs, seqLen);
+  switchTab('glycosylation');
+}
+
+function dedup(arr, keyFn) {
+  const seen = new Set();
+  return arr.filter(item => {
+    const k = keyFn(item);
+    if (seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
+}
+
+// ---- Position Track ----
+function drawTrack(glyc, phos, snvs, seqLen) {
+  const container = document.getElementById('trackContainer');
+  if (!seqLen) { container.innerHTML = '<p style="color:var(--text2); font-size:13px">No sequence length available</p>'; return; }
+
+  const width = container.clientWidth || 700;
+  const height = 130;
+  const margin = { left: 10, right: 10, top: 10, bottom: 30 };
+  const plotW = width - margin.left - margin.right;
+  const plotH = height - margin.top - margin.bottom;
+
+  const scale = pos => margin.left + (pos / seqLen) * plotW;
+
+  let svg = `<svg width="${width}" height="${height}" style="display:block">`;
+
+  // Axis
+  svg += `<line x1="${margin.left}" y1="${height - margin.bottom}" x2="${width - margin.right}" y2="${height - margin.bottom}" stroke="#2e3140" stroke-width="2"/>`;
+
+  // Ticks
+  const tickInterval = seqLen <= 500 ? 100 : seqLen <= 2000 ? 200 : 500;
+  for (let t = 0; t <= seqLen; t += tickInterval) {
+    const x = scale(t);
+    svg += `<line x1="${x}" y1="${height - margin.bottom}" x2="${x}" y2="${height - margin.bottom + 5}" stroke="#2e3140" stroke-width="1"/>`;
+    svg += `<text x="${x}" y="${height - 5}" text-anchor="middle" fill="#9ca0b0" font-size="9">${t}</text>`;
+  }
+
+  // Track rows
+  const glycY = margin.top + 10;
+  const phosY = margin.top + 35;
+  const snvY = margin.top + 60;
+
+  // Labels
+  svg += `<text x="${margin.left}" y="${glycY + 4}" fill="#4ade80" font-size="10" font-weight="600">Glyc</text>`;
+  svg += `<text x="${margin.left}" y="${phosY + 4}" fill="#a78bfa" font-size="10" font-weight="600">Phos</text>`;
+  svg += `<text x="${margin.left}" y="${snvY + 4}" fill="#ef4444" font-size="10" font-weight="600">SNV</text>`;
+
+  const labelOffset = 32;
+
+  // Glycosylation marks
+  const glycPositions = {};
+  glyc.forEach(g => {
+    if (g.start_pos) {
+      if (!glycPositions[g.start_pos]) glycPositions[g.start_pos] = [];
+      glycPositions[g.start_pos].push(g);
+    }
+  });
+  Object.entries(glycPositions).forEach(([pos, entries]) => {
+    const x = scale(parseInt(pos)) + labelOffset;
+    const type = entries[0].type || '';
+    const color = type === 'N-linked' ? '#4ade80' : type === 'O-linked' ? '#22d3ee' : type === 'C-linked' ? '#f59e0b' : '#4ade80';
+    svg += `<circle cx="${x}" cy="${glycY}" r="4" fill="${color}" opacity="0.8"
+      onmouseover="showTip(event, 'Glycosylation', 'Pos ${pos} (${entries[0].residue || entries[0].start_aa || '?'}) &middot; ${type} ${entries[0].subtype || ''} &middot; ${entries.length} record(s)')"
+      onmouseout="hideTip()" style="cursor:pointer"/>`;
+  });
+
+  // Phosphorylation marks
+  phos.forEach(p => {
+    if (p.start_pos) {
+      const x = scale(p.start_pos) + labelOffset;
+      svg += `<rect x="${x-3}" y="${phosY-3}" width="6" height="6" rx="1" fill="#a78bfa" opacity="0.8"
+        onmouseover="showTip(event, 'Phosphorylation', 'Pos ${p.start_pos} (${p.residue || '?'}) &middot; ${p.comment || ''}')"
+        onmouseout="hideTip()" style="cursor:pointer"/>`;
+    }
+  });
+
+  // SNV marks
+  snvs.forEach(s => {
+    if (s.start_pos) {
+      const x = scale(s.start_pos) + labelOffset;
+      const hasDis = s.disease && s.disease.length > 0;
+      svg += `<polygon points="${x},${snvY-5} ${x+4},${snvY+3} ${x-4},${snvY+3}" fill="${hasDis ? '#ef4444' : '#f59e0b'}" opacity="0.8"
+        onmouseover="showTip(event, 'SNV', '${s.site_lbl || ''}: ${s.sequence_org||''} > ${s.sequence_mut||''} ${hasDis ? '(disease-associated)' : ''}')"
+        onmouseout="hideTip()" style="cursor:pointer"/>`;
+    }
+  });
+
+  svg += '</svg>';
+
+  // Legend
+  svg += `<div style="display:flex; gap:16px; margin-top:4px; font-size:11px; color:var(--text2); padding-left:${labelOffset}px">
+    <span><svg width="10" height="10"><circle cx="5" cy="5" r="4" fill="#4ade80"/></svg> N-linked</span>
+    <span><svg width="10" height="10"><circle cx="5" cy="5" r="4" fill="#22d3ee"/></svg> O-linked</span>
+    <span><svg width="10" height="10"><circle cx="5" cy="5" r="4" fill="#f59e0b"/></svg> C-linked</span>
+    <span><svg width="10" height="10"><rect x="2" y="2" width="6" height="6" rx="1" fill="#a78bfa"/></svg> Phosphorylation</span>
+    <span><svg width="10" height="10"><polygon points="5,1 9,8 1,8" fill="#ef4444"/></svg> Disease SNV</span>
+    <span><svg width="10" height="10"><polygon points="5,1 9,8 1,8" fill="#f59e0b"/></svg> Other SNV</span>
+  </div>`;
+
+  container.innerHTML = svg;
+}
+
+// ---- Tooltip ----
+function showTip(evt, title, text) {
+  const tip = document.getElementById('tooltip');
+  tip.innerHTML = `<div class="tip-label">${title}</div><div class="tip-value">${text}</div>`;
+  tip.style.display = 'block';
+  tip.style.left = (evt.clientX + 12) + 'px';
+  tip.style.top = (evt.clientY - 10) + 'px';
+}
+function hideTip() {
+  document.getElementById('tooltip').style.display = 'none';
+}
+
+// ---- Tabs ----
+function switchTab(tab) {
+  document.querySelectorAll('#ptmTabs .tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
+  const content = document.getElementById('tabContent');
+  const d = currentData;
+  if (!d) return;
+
+  if (tab === 'glycosylation') renderGlycosylation(content, d.glycosylation || []);
+  else if (tab === 'phosphorylation') renderPhosphorylation(content, d.phosphorylation || []);
+  else if (tab === 'snv') renderSNV(content, d.snv || []);
+  else if (tab === 'diseases') renderDiseases(content, d.disease || []);
+  else if (tab === 'annotations') renderAnnotations(content, d.ptm_annotation || []);
+}
+
+// ---- Glycosylation table ----
+function renderGlycosylation(container, data) {
+  if (!data.length) { container.innerHTML = '<p style="color:var(--text2)">No glycosylation data in GlyGen for this protein.</p>'; return; }
+
+  // Collect unique types and subtypes
+  const types = [...new Set(data.map(d => d.type).filter(Boolean))];
+  const categories = [...new Set(data.map(d => d.site_category).filter(Boolean))];
+
+  let html = `<div class="filter-bar">
+    <select id="glycTypeFilter" onchange="filterGlycTable()">
+      <option value="">All types</option>
+      ${types.map(t => `<option value="${t}">${t}</option>`).join('')}
+    </select>
+    <select id="glycCatFilter" onchange="filterGlycTable()">
+      <option value="">All categories</option>
+      ${categories.map(c => `<option value="${c}">${c.replace(/_/g, ' ')}</option>`).join('')}
+    </select>
+    <span class="filter-count" id="glycCount">${data.length} records</span>
+  </div>`;
+
+  html += `<div class="table-wrap"><table id="glycTable">
+    <thead><tr>
+      <th onclick="sortGlycTable('start_pos')">Position</th>
+      <th onclick="sortGlycTable('residue')">Residue</th>
+      <th onclick="sortGlycTable('type')">Type</th>
+      <th onclick="sortGlycTable('subtype')">Subtype</th>
+      <th onclick="sortGlycTable('site_category')">Category</th>
+      <th>GlyTouCan</th>
+      <th>Evidence</th>
+    </tr></thead>
+    <tbody id="glycBody">
+    </tbody>
+  </table></div>`;
+
+  container.innerHTML = html;
+  window._glycData = data;
+  window._glycSort = { col: 'start_pos', asc: true };
+  filterGlycTable();
+}
+
+function filterGlycTable() {
+  const typeF = document.getElementById('glycTypeFilter').value;
+  const catF = document.getElementById('glycCatFilter').value;
+  let filtered = window._glycData;
+  if (typeF) filtered = filtered.filter(d => d.type === typeF);
+  if (catF) filtered = filtered.filter(d => d.site_category === catF);
+
+  const { col, asc } = window._glycSort;
+  filtered.sort((a, b) => {
+    let va = a[col], vb = b[col];
+    if (typeof va === 'number') return asc ? va - vb : vb - va;
+    va = (va || '').toString(); vb = (vb || '').toString();
+    return asc ? va.localeCompare(vb) : vb.localeCompare(va);
+  });
+
+  document.getElementById('glycCount').textContent = filtered.length + ' records';
+  const body = document.getElementById('glycBody');
+  body.innerHTML = filtered.map(g => `<tr>
+    <td><strong>${g.start_pos || '?'}</strong>${g.end_pos && g.end_pos !== g.start_pos ? '-' + g.end_pos : ''}</td>
+    <td>${g.residue || g.start_aa || g.site_lbl || ''}</td>
+    <td><span class="ptm-type-badge ${g.type === 'N-linked' ? 'ptm-glyc' : g.type === 'O-linked' ? 'ptm-other' : 'ptm-glyc'}">${g.type || ''}</span></td>
+    <td>${g.subtype || ''}</td>
+    <td style="font-size:11px">${(g.site_category || '').replace(/_/g, ' ')}</td>
+    <td>${g.glytoucan_ac ? `<a href="https://www.glygen.org/glycan/${g.glytoucan_ac}" target="_blank">${g.glytoucan_ac}</a>` : '-'}</td>
+    <td>${renderEvidence(g.evidence)}</td>
+  </tr>`).join('');
+}
+
+function sortGlycTable(col) {
+  if (window._glycSort.col === col) window._glycSort.asc = !window._glycSort.asc;
+  else { window._glycSort.col = col; window._glycSort.asc = true; }
+  filterGlycTable();
+}
+
+// ---- Phosphorylation table ----
+function renderPhosphorylation(container, data) {
+  if (!data.length) { container.innerHTML = '<p style="color:var(--text2)">No phosphorylation data in GlyGen for this protein.</p>'; return; }
+  let html = `<div class="filter-bar">
+    <span class="filter-count">${data.length} sites</span>
+  </div>`;
+  html += `<div class="table-wrap"><table>
+    <thead><tr>
+      <th>Position</th>
+      <th>Residue</th>
+      <th>Annotation</th>
+      <th>Evidence</th>
+    </tr></thead>
+    <tbody>
+    ${data.sort((a,b) => (a.start_pos||0)-(b.start_pos||0)).map(p => `<tr>
+      <td><strong>${p.start_pos || '?'}</strong></td>
+      <td><span class="ptm-type-badge ptm-phos">${p.residue || ''}</span></td>
+      <td style="font-size:12px">${p.comment || ''}</td>
+      <td>${renderEvidence(p.evidence)}</td>
+    </tr>`).join('')}
+    </tbody>
+  </table></div>`;
+  container.innerHTML = html;
+}
+
+// ---- SNV table ----
+function renderSNV(container, data) {
+  if (!data.length) { container.innerHTML = '<p style="color:var(--text2)">No SNV/mutation data in GlyGen for this protein.</p>'; return; }
+  let html = `<div class="filter-bar">
+    <select id="snvFilter" onchange="filterSNV()">
+      <option value="">All SNVs</option>
+      <option value="disease">Disease-associated only</option>
+      <option value="nondisease">Non-disease only</option>
+    </select>
+    <span class="filter-count" id="snvCount">${data.length} variants</span>
+  </div>`;
+  html += `<div class="table-wrap"><table>
+    <thead><tr>
+      <th>Position</th>
+      <th>Change</th>
+      <th>Comment</th>
+      <th>Disease</th>
+      <th>Evidence</th>
+    </tr></thead>
+    <tbody id="snvBody">
+    </tbody>
+  </table></div>`;
+  container.innerHTML = html;
+  window._snvData = data;
+  filterSNV();
+}
+
+function filterSNV() {
+  const f = document.getElementById('snvFilter').value;
+  let filtered = window._snvData;
+  if (f === 'disease') filtered = filtered.filter(s => s.disease && s.disease.length > 0);
+  else if (f === 'nondisease') filtered = filtered.filter(s => !s.disease || s.disease.length === 0);
+
+  document.getElementById('snvCount').textContent = filtered.length + ' variants';
+  document.getElementById('snvBody').innerHTML = filtered.sort((a,b) => (a.start_pos||0)-(b.start_pos||0)).map(s => {
+    const hasDis = s.disease && s.disease.length > 0;
+    return `<tr>
+      <td><strong>${s.site_lbl || s.start_pos || '?'}</strong></td>
+      <td>${s.sequence_org || ''} &rarr; ${s.sequence_mut || ''}</td>
+      <td style="font-size:12px">${s.comment || ''}</td>
+      <td>${hasDis ? s.disease.map(d => `<span class="disease-chip">${d.recommended_name?.name || d.disease_id || ''}</span>`).join(' ') : '<span style="color:var(--text2)">-</span>'}</td>
+      <td>${renderEvidence(s.evidence)}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ---- Diseases table ----
+function renderDiseases(container, data) {
+  if (!data.length) { container.innerHTML = '<p style="color:var(--text2)">No disease associations in GlyGen for this protein.</p>'; return; }
+
+  // Highlight neurodegenerative
+  const neuroRe = /(alzheimer|parkinson|huntington|amyotrophic|dementia|neurodegenerat|prion|ataxia|sclerosis|lewy|tau|amyloid|encephalopath)/i;
+
+  let html = `<div class="filter-bar">
+    <select id="diseaseFilter" onchange="filterDiseases()">
+      <option value="">All diseases (${data.length})</option>
+      <option value="neuro">Neurodegenerative only</option>
+    </select>
+    <span class="filter-count" id="diseaseCount">${data.length} associations</span>
+  </div>`;
+  html += `<div class="table-wrap"><table>
+    <thead><tr>
+      <th>Disease</th>
+      <th>DOID</th>
+      <th>Description</th>
+      <th>Evidence</th>
+    </tr></thead>
+    <tbody id="diseaseBody">
+    </tbody>
+  </table></div>`;
+  container.innerHTML = html;
+  window._diseaseData = data;
+  window._neuroRe = neuroRe;
+  filterDiseases();
+}
+
+function filterDiseases() {
+  const f = document.getElementById('diseaseFilter').value;
+  let filtered = window._diseaseData;
+  if (f === 'neuro') filtered = filtered.filter(d => window._neuroRe.test(d.recommended_name?.name || ''));
+
+  document.getElementById('diseaseCount').textContent = filtered.length + ' associations';
+  document.getElementById('diseaseBody').innerHTML = filtered.map(d => {
+    const name = d.recommended_name?.name || '';
+    const isNeuro = window._neuroRe.test(name);
+    return `<tr>
+      <td style="font-weight:${isNeuro ? '600' : '400'}; ${isNeuro ? 'color:var(--orange)' : ''}">${name}</td>
+      <td><a href="${d.recommended_name?.url || '#'}" target="_blank">${d.disease_id || ''}</a></td>
+      <td style="font-size:12px; max-width:400px">${d.recommended_name?.description || ''}</td>
+      <td>${renderEvidence(d.evidence)}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ---- PTM Annotations ----
+function renderAnnotations(container, data) {
+  if (!data.length) { container.innerHTML = '<p style="color:var(--text2)">No PTM annotation text in GlyGen for this protein.</p>'; return; }
+  container.innerHTML = data.map(a => `
+    <div class="ptm-annot">
+      <p>${a.annotation}</p>
+      <div style="margin-top:8px">${renderEvidence(a.evidence)}</div>
+    </div>
+  `).join('');
+}
+
+// ---- Evidence renderer ----
+function renderEvidence(ev) {
+  if (!ev || !ev.length) return '<span style="color:var(--text2)">-</span>';
+  return ev.slice(0, 5).map(e => {
+    const label = e.database === 'PubMed' ? `PMID:${e.id}` : `${e.database}:${e.id}`;
+    return `<span class="ev-pill"><a href="${e.url}" target="_blank">${label}</a></span>`;
+  }).join('') + (ev.length > 5 ? `<span class="ev-pill">+${ev.length - 5}</span>` : '');
+}
+
+// ---- Keyboard shortcut ----
+document.getElementById('proteinInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') doSearch();
+});
+
+// ---- Window resize handler for track ----
+window.addEventListener('resize', () => {
+  if (currentData) {
+    drawTrack(
+      currentData.glycosylation || [],
+      currentData.phosphorylation || [],
+      currentData.snv || [],
+      currentData.sequence?.length || 0
+    );
+  }
+});
+</script>
+</body>
+</html>
