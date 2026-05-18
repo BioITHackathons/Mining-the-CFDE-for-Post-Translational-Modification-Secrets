@@ -443,28 +443,28 @@ tr:hover td { background: rgba(108,138,255,.04); }
       <div class="section-title">Quick-Pick Proteins</div>
       <label style="margin-bottom:5px">Alzheimer's Disease</label>
       <div class="preset-grid" style="margin-bottom:10px">
-        <button class="preset-btn" onclick="quickSearch('P05067')">APP</button>
-        <button class="preset-btn" onclick="quickSearch('P49768')">PSEN1</button>
-        <button class="preset-btn" onclick="quickSearch('P10636')">MAPT/Tau</button>
-        <button class="preset-btn" onclick="quickSearch('P56817')">BACE1</button>
-        <button class="preset-btn" onclick="quickSearch('Q9NZC2')">TREM2</button>
-        <button class="preset-btn" onclick="quickSearch('P02649')">APOE</button>
+        <button class="preset-btn" onclick="quickSearch('P05067','alzheimer')">APP</button>
+        <button class="preset-btn" onclick="quickSearch('P49768','alzheimer')">PSEN1</button>
+        <button class="preset-btn" onclick="quickSearch('P10636','alzheimer')">MAPT/Tau</button>
+        <button class="preset-btn" onclick="quickSearch('P56817','alzheimer')">BACE1</button>
+        <button class="preset-btn" onclick="quickSearch('Q9NZC2','alzheimer')">TREM2</button>
+        <button class="preset-btn" onclick="quickSearch('P02649','alzheimer')">APOE</button>
       </div>
       <label style="margin-bottom:5px">Parkinson's Disease</label>
       <div class="preset-grid" style="margin-bottom:10px">
-        <button class="preset-btn" onclick="quickSearch('P37840')">SNCA</button>
-        <button class="preset-btn" onclick="quickSearch('Q5S007')">LRRK2</button>
-        <button class="preset-btn" onclick="quickSearch('Q99497')">PARK7/DJ-1</button>
-        <button class="preset-btn" onclick="quickSearch('Q9BXM7')">PINK1</button>
-        <button class="preset-btn" onclick="quickSearch('P04062')">GBA</button>
+        <button class="preset-btn" onclick="quickSearch('P37840','parkinson')">SNCA</button>
+        <button class="preset-btn" onclick="quickSearch('Q5S007','parkinson')">LRRK2</button>
+        <button class="preset-btn" onclick="quickSearch('Q99497','parkinson')">PARK7/DJ-1</button>
+        <button class="preset-btn" onclick="quickSearch('Q9BXM7','parkinson')">PINK1</button>
+        <button class="preset-btn" onclick="quickSearch('P04062','parkinson')">GBA</button>
       </div>
       <label style="margin-bottom:5px">ALS / Huntington's / FTD</label>
       <div class="preset-grid">
-        <button class="preset-btn" onclick="quickSearch('P00441')">SOD1</button>
-        <button class="preset-btn" onclick="quickSearch('Q13148')">TDP-43</button>
-        <button class="preset-btn" onclick="quickSearch('P35637')">FUS</button>
-        <button class="preset-btn" onclick="quickSearch('P42858')">HTT</button>
-        <button class="preset-btn" onclick="quickSearch('P04156')">PRNP</button>
+        <button class="preset-btn" onclick="quickSearch('P00441','amyotrophic')">SOD1</button>
+        <button class="preset-btn" onclick="quickSearch('Q13148','amyotrophic')">TDP-43</button>
+        <button class="preset-btn" onclick="quickSearch('P35637','amyotrophic')">FUS</button>
+        <button class="preset-btn" onclick="quickSearch('P42858','huntington')">HTT</button>
+        <button class="preset-btn" onclick="quickSearch('P04156','prion')">PRNP</button>
       </div>
     </div>
 
@@ -679,6 +679,7 @@ let activeFilters = new Set();
 let sortCol = 'position';
 let sortDir = 'asc';
 let glycSort = { col: 'start_pos', asc: true };
+let diseaseFilter = null; // null = show all, string = filter by disease name substring
 
 // ========================================================
 // API REQUEST LOG (fetch interceptor)
@@ -840,10 +841,11 @@ const NEURO_RE = /(alzheimer|parkinson|huntington|amyotrophic|dementia|neurodege
 // ========================================================
 // SEARCH
 // ========================================================
-function quickSearch(ac) {
+function quickSearch(ac, disContext) {
   document.getElementById('searchInput').value = ac;
   document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
   if (event && event.target) event.target.classList.add('active');
+  diseaseFilter = disContext || null;
   doSearch();
 }
 
@@ -1099,20 +1101,13 @@ function renderAll() {
       <div class="stat-card"><div class="stat-val" style="color:var(--text2)">${d.length}</div><div class="stat-lbl">Length (aa)</div></div>
     </div>
 
+    <!-- Disease filter banner -->
+    <div id="diseaseFilterBanner"></div>
+
     <!-- Disease context (always visible in protein view) -->
     ${d.diseases.length > 0 ? `<div class="card">
-      <div class="card-header"><h3>Disease Associations</h3><span style="font-size:11px;color:var(--text2)">${d.diseases.length} diseases linked to this protein</span></div>
-      <div class="card-body" style="display:flex;flex-wrap:wrap;gap:6px">
-        ${d.diseases.sort((a,b) => {
-          const an = NEURO_RE.test(a.name) ? 0 : 1;
-          const bn = NEURO_RE.test(b.name) ? 0 : 1;
-          return an - bn || a.name.localeCompare(b.name);
-        }).slice(0, 40).map(dis => {
-          const isN = NEURO_RE.test(dis.name);
-          return `<span class="disease-chip" style="${isN ? 'background:rgba(245,158,11,.12);border-color:rgba(245,158,11,.3);color:var(--orange);font-weight:600' : ''}" title="${dis.description || ''}">${dis.name}${dis.source ? ' <span style=&quot;opacity:.5&quot;>(' + dis.source + ')</span>' : ''}</span>`;
-        }).join('')}
-        ${d.diseases.length > 40 ? `<span style="font-size:11px;color:var(--text2)">+${d.diseases.length - 40} more</span>` : ''}
-      </div>
+      <div class="card-header"><h3>Disease Associations</h3><span style="font-size:11px;color:var(--text2)">${d.diseases.length} diseases &mdash; click one to filter all results by that disease</span></div>
+      <div class="card-body" style="display:flex;flex-wrap:wrap;gap:6px" id="diseaseChipArea"></div>
     </div>` : ''}
 
     <!-- PTM + Disease Map (canvas) -->
@@ -1153,6 +1148,8 @@ function renderAll() {
     </div>
   `;
 
+  renderFilterBanner();
+  renderDiseaseChips();
   renderPTMMap();
   renderImpactPanel();
   renderPTMTable();
@@ -1163,6 +1160,68 @@ function renderAll() {
   renderPathways();
   renderCrosstalk();
   renderAnnotations();
+}
+
+// Disease filter helpers
+function matchesDiseaseFilter(name) {
+  if (!diseaseFilter) return true;
+  return name && name.toLowerCase().includes(diseaseFilter.toLowerCase());
+}
+
+function setDiseaseFilter(name) {
+  if (diseaseFilter && diseaseFilter.toLowerCase() === name.toLowerCase()) {
+    diseaseFilter = null; // toggle off
+  } else {
+    diseaseFilter = name;
+  }
+  // Re-render filter-sensitive parts without full rebuild
+  renderFilterBanner();
+  renderDiseaseChips();
+  renderPTMMap();
+  renderImpactPanel();
+  renderSNV();
+  renderAnnotations();
+}
+
+function clearDiseaseFilter() {
+  diseaseFilter = null;
+  renderFilterBanner();
+  renderDiseaseChips();
+  renderPTMMap();
+  renderImpactPanel();
+  renderSNV();
+  renderAnnotations();
+}
+
+function renderFilterBanner() {
+  const el = document.getElementById('diseaseFilterBanner');
+  if (!el) return;
+  if (!diseaseFilter) { el.innerHTML = ''; return; }
+  el.innerHTML = `<div style="background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.3);border-radius:var(--radius);padding:8px 14px;margin-bottom:12px;display:flex;align-items:center;gap:10px">
+    <span style="font-size:13px;color:var(--orange);font-weight:600">Filtered by: ${diseaseFilter}</span>
+    <span style="font-size:12px;color:var(--text2)">SNVs, annotations, and map highlights filtered to this disease context</span>
+    <button class="btn btn-outline btn-sm" style="margin-left:auto;border-color:var(--orange);color:var(--orange)" onclick="clearDiseaseFilter()">Clear Filter</button>
+  </div>`;
+}
+
+function renderDiseaseChips() {
+  const el = document.getElementById('diseaseChipArea');
+  if (!el || !currentData) return;
+  const d = currentData;
+  const sorted = [...d.diseases].sort((a, b) => {
+    const an = NEURO_RE.test(a.name) ? 0 : 1;
+    const bn = NEURO_RE.test(b.name) ? 0 : 1;
+    return an - bn || a.name.localeCompare(b.name);
+  });
+  el.innerHTML = sorted.slice(0, 50).map(dis => {
+    const isN = NEURO_RE.test(dis.name);
+    const isActive = diseaseFilter && dis.name.toLowerCase().includes(diseaseFilter.toLowerCase());
+    const activeStyle = isActive
+      ? 'background:var(--orange);border-color:var(--orange);color:#fff;font-weight:700'
+      : isN ? 'background:rgba(245,158,11,.12);border-color:rgba(245,158,11,.3);color:var(--orange);font-weight:600' : '';
+    const safeName = dis.name.replace(/'/g, "\\'");
+    return `<span class="disease-chip" style="cursor:pointer;${activeStyle}" title="${dis.description || ''}" onclick="setDiseaseFilter('${safeName}')">${dis.name}</span>`;
+  }).join('') + (d.diseases.length > 50 ? `<span style="font-size:11px;color:var(--text2)">+${d.diseases.length - 50} more</span>` : '');
 }
 
 function switchMainTab(id) {
@@ -1263,31 +1322,38 @@ function renderPTMMap() {
     const x = scale(s.start_pos);
     const disNames = s.disease.map(dd => dd.recommended_name?.name || dd.disease_id || '').join(', ');
     const isNeuro = NEURO_RE.test(disNames);
+    const matchesFilter = diseaseFilter ? s.disease.some(dd => matchesDiseaseFilter(dd.recommended_name?.name || '')) : true;
+    const dimmed = diseaseFilter && !matchesFilter;
 
-    // Draw proximity arc to nearby PTM sites
-    for (const ptmPos of ptmPositions) {
-      if (Math.abs(s.start_pos - ptmPos) <= 5) {
-        const ptmX = scale(ptmPos);
-        const arcY = snvBaseY + 18 + Math.abs(s.start_pos - ptmPos) * 3;
-        ctx.strokeStyle = isNeuro ? 'rgba(245,158,11,.35)' : 'rgba(239,68,68,.25)';
-        ctx.lineWidth = 1.5;
-        ctx.beginPath();
-        ctx.moveTo(x, snvBaseY + 4);
-        ctx.quadraticCurveTo((x + ptmX) / 2, arcY, ptmX, trackY + trackH);
-        ctx.stroke();
-        // small label
-        ctx.fillStyle = isNeuro ? 'rgba(245,158,11,.6)' : 'rgba(239,68,68,.4)';
-        ctx.font = '8px system-ui'; ctx.textAlign = 'center';
-        ctx.fillText(Math.abs(s.start_pos - ptmPos) + 'aa', (x + ptmX) / 2, arcY + 2);
+    // Draw proximity arc to nearby PTM sites (only for matching or unfiltered)
+    if (!dimmed) {
+      for (const ptmPos of ptmPositions) {
+        if (Math.abs(s.start_pos - ptmPos) <= 5) {
+          const ptmX = scale(ptmPos);
+          const arcY = snvBaseY + 18 + Math.abs(s.start_pos - ptmPos) * 3;
+          ctx.strokeStyle = matchesFilter && diseaseFilter ? 'rgba(245,158,11,.5)' : isNeuro ? 'rgba(245,158,11,.35)' : 'rgba(239,68,68,.25)';
+          ctx.lineWidth = matchesFilter && diseaseFilter ? 2.5 : 1.5;
+          ctx.beginPath();
+          ctx.moveTo(x, snvBaseY + 4);
+          ctx.quadraticCurveTo((x + ptmX) / 2, arcY, ptmX, trackY + trackH);
+          ctx.stroke();
+          ctx.fillStyle = matchesFilter && diseaseFilter ? 'rgba(245,158,11,.8)' : isNeuro ? 'rgba(245,158,11,.6)' : 'rgba(239,68,68,.4)';
+          ctx.font = (matchesFilter && diseaseFilter ? 'bold ' : '') + '8px system-ui'; ctx.textAlign = 'center';
+          ctx.fillText(Math.abs(s.start_pos - ptmPos) + 'aa', (x + ptmX) / 2, arcY + 2);
+        }
       }
     }
 
     // Marker
     const markerY = snvBaseY;
+    const alpha = dimmed ? 0.2 : 1;
+    const markerSize = matchesFilter && diseaseFilter ? 7 : 5;
     ctx.beginPath();
-    ctx.moveTo(x, markerY - 5); ctx.lineTo(x + 5, markerY + 3); ctx.lineTo(x - 5, markerY + 3); ctx.closePath();
+    ctx.moveTo(x, markerY - markerSize); ctx.lineTo(x + markerSize, markerY + markerSize*0.6); ctx.lineTo(x - markerSize, markerY + markerSize*0.6); ctx.closePath();
+    ctx.globalAlpha = alpha;
     ctx.fillStyle = isNeuro ? '#f59e0b' : '#ef4444'; ctx.fill();
     ctx.strokeStyle = isNeuro ? '#f59e0b80' : '#ef444480'; ctx.lineWidth = 1; ctx.stroke();
+    ctx.globalAlpha = 1;
 
     markers.push({ x, y: markerY, r: 6, ptm: { type: isNeuro ? 'Disease SNV (neuro)' : 'Disease SNV', position: s.start_pos, residue: s.site_lbl || '', description: `${s.sequence_org||''} > ${s.sequence_mut||''} | ${disNames}`, source: 'GlyGen/BioMuta', evidence: s.evidence || [], kinase: '' }, color: isNeuro ? '#f59e0b' : '#ef4444', kind: 'disSNV' });
   }
@@ -1343,7 +1409,11 @@ function renderImpactPanel() {
   if (!el) return;
   const d = currentData;
   const snvs = d.snv || [];
-  const disSNVs = snvs.filter(s => s.disease && s.disease.length > 0 && s.start_pos);
+  let disSNVs = snvs.filter(s => s.disease && s.disease.length > 0 && s.start_pos);
+  // Apply disease filter
+  if (diseaseFilter) {
+    disSNVs = disSNVs.filter(s => s.disease.some(dd => matchesDiseaseFilter(dd.recommended_name?.name || '')));
+  }
   const glyc = d.glycosylation || [];
   const phos = d.phosphorylation || [];
   const ptmAnnot = d.ptmAnnotation || [];
@@ -1395,7 +1465,11 @@ function renderImpactPanel() {
   }
 
   // --- 4. Expression in disease from BioXpress ---
-  const sigExpr = exprDis.filter(e => e.significant === 'Yes');
+  let sigExpr = exprDis.filter(e => e.significant === 'Yes');
+  if (diseaseFilter) {
+    const filteredExpr = sigExpr.filter(e => matchesDiseaseFilter(e.name || ''));
+    if (filteredExpr.length > 0) sigExpr = filteredExpr;
+  }
 
   // --- Build HTML ---
   if (impactSNVs.length === 0 && competitionSites.length === 0 && diseaseAnnotations.length === 0 && sigExpr.length === 0 && d.diseases.length === 0) {
@@ -1405,7 +1479,7 @@ function renderImpactPanel() {
 
   let html = '<div class="card">';
   html += '<div class="card-header"><h3>Disease vs. Normal PTM Context</h3>';
-  html += `<span style="font-size:11px;color:var(--text2)">What we know about PTMs in disease for this protein</span></div>`;
+  html += `<span style="font-size:11px;color:var(--text2)">${diseaseFilter ? 'Filtered: ' + diseaseFilter + ' &mdash; ' : ''}What we know about PTMs in disease for this protein</span></div>`;
   html += '<div class="card-body">';
 
   html += '<p style="font-size:12px;color:var(--text2);margin-bottom:14px;line-height:1.6">';
@@ -1625,17 +1699,28 @@ function renderSNV() {
   filterSNV();
 }
 function filterSNV() {
-  const f = document.getElementById('snvF').value;
+  const f = document.getElementById('snvF')?.value || '';
   let d = currentData.snv;
   if (f==='disease') d = d.filter(s => s.disease && s.disease.length > 0);
   else if (f==='other') d = d.filter(s => !s.disease || s.disease.length === 0);
-  document.getElementById('snvCount').textContent = d.length + ' variants';
+  // Apply disease filter
+  if (diseaseFilter) {
+    d = d.filter(s => {
+      if (!s.disease || !s.disease.length) return false;
+      return s.disease.some(dd => matchesDiseaseFilter(dd.recommended_name?.name || ''));
+    });
+  }
+  document.getElementById('snvCount').textContent = d.length + ' variants' + (diseaseFilter ? ` (filtered: ${diseaseFilter})` : '');
   document.getElementById('snvBody').innerHTML = [...d].sort((a,b)=>(a.start_pos||0)-(b.start_pos||0)).map(s => {
     const hd = s.disease && s.disease.length > 0;
     return `<tr><td><strong>${s.site_lbl||s.start_pos||'?'}</strong></td>
       <td>${s.sequence_org||''} &rarr; ${s.sequence_mut||''}</td>
       <td style="font-size:12px">${s.comment||''}</td>
-      <td>${hd?s.disease.map(x=>`<span class="disease-chip">${x.recommended_name?.name||x.disease_id||''}</span>`).join(' '):'<span style="color:var(--text2)">-</span>'}</td>
+      <td>${hd?s.disease.map(x => {
+        const dn = x.recommended_name?.name||x.disease_id||'';
+        const match = matchesDiseaseFilter(dn);
+        return `<span class="disease-chip" style="${match && diseaseFilter ? 'background:var(--orange);border-color:var(--orange);color:#fff;font-weight:700' : ''}">${dn}</span>`;
+      }).join(' '):'<span style="color:var(--text2)">-</span>'}</td>
       <td>${renderEvPills(s.evidence)}</td></tr>`;
   }).join('');
 }
@@ -1710,8 +1795,33 @@ function renderAnnotations() {
   const el = document.getElementById('annotContent');
   const data = currentData.ptmAnnotation;
   if (!data.length) { el.innerHTML = '<p style="color:var(--text2)">No PTM annotations available.</p>'; return; }
-  el.innerHTML = data.map(a => `<div class="ptm-annot"><p>${a.annotation}</p>
-    <div style="margin-top:6px">${renderEvPills(a.evidence)}</div></div>`).join('');
+
+  let filtered = data;
+  if (diseaseFilter) {
+    // When disease filter is active, show matching annotations first, then others dimmed
+    const matching = data.filter(a => a.annotation.toLowerCase().includes(diseaseFilter.toLowerCase()));
+    const rest = data.filter(a => !a.annotation.toLowerCase().includes(diseaseFilter.toLowerCase()));
+    let html = '';
+    if (matching.length) {
+      html += `<div style="font-size:11px;font-weight:600;color:var(--orange);margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px">Relevant to: ${diseaseFilter} (${matching.length})</div>`;
+      html += matching.map(a => {
+        const highlighted = a.annotation.replace(new RegExp(`(${diseaseFilter.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')})`, 'gi'), '<mark style="background:rgba(245,158,11,.25);color:var(--orange);padding:0 2px;border-radius:2px">$1</mark>');
+        return `<div class="ptm-annot" style="border-left-color:var(--orange)"><p>${highlighted}</p><div style="margin-top:6px">${renderEvPills(a.evidence)}</div></div>`;
+      }).join('');
+    }
+    if (rest.length) {
+      html += `<div style="font-size:11px;font-weight:600;color:var(--text2);margin:12px 0 6px;text-transform:uppercase;letter-spacing:.5px">Other annotations (${rest.length})</div>`;
+      html += rest.map(a => `<div class="ptm-annot" style="opacity:.5"><p>${a.annotation}</p><div style="margin-top:6px">${renderEvPills(a.evidence)}</div></div>`).join('');
+    }
+    if (!matching.length) {
+      html = `<p style="font-size:12px;color:var(--text2);margin-bottom:10px">No annotations directly mention "${diseaseFilter}". Showing all annotations:</p>` +
+        data.map(a => `<div class="ptm-annot"><p>${a.annotation}</p><div style="margin-top:6px">${renderEvPills(a.evidence)}</div></div>`).join('');
+    }
+    el.innerHTML = html;
+  } else {
+    el.innerHTML = data.map(a => `<div class="ptm-annot"><p>${a.annotation}</p>
+      <div style="margin-top:6px">${renderEvPills(a.evidence)}</div></div>`).join('');
+  }
 }
 
 // ========================================================
@@ -2126,6 +2236,8 @@ function switchDisTab(id) {
 function drillIntoProtein(ac) {
   setMode('protein');
   document.getElementById('searchInput').value = ac;
+  // Carry disease context from Disease Explorer
+  diseaseFilter = diseaseData ? diseaseData.disName : null;
   doSearch();
 }
 
