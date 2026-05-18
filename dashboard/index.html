@@ -290,6 +290,93 @@ tr:hover td { background: rgba(108,138,255,.04); }
 
 .progress-bar { width: 100%; height: 4px; background: var(--surface2); border-radius: 2px; margin: 8px 0; overflow: hidden; }
 .progress-fill { height: 100%; background: var(--accent); border-radius: 2px; transition: width .3s; }
+
+/* ---- API Log Drawer ---- */
+.api-drawer {
+  position: fixed; bottom: 0; left: 0; right: 0; z-index: 900;
+  background: var(--surface); border-top: 1px solid var(--border);
+  transform: translateY(100%); transition: transform .3s;
+  max-height: 45vh; display: flex; flex-direction: column;
+}
+.api-drawer.open { transform: translateY(0); }
+.api-drawer-header {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 16px; border-bottom: 1px solid var(--border);
+  cursor: pointer; user-select: none; flex-shrink: 0;
+}
+.api-drawer-header h4 { font-size: 13px; font-weight: 600; flex: 1; }
+.api-drawer-body { overflow-y: auto; flex: 1; padding: 0; }
+.api-entry {
+  padding: 8px 16px; border-bottom: 1px solid var(--border);
+  font-family: 'SF Mono', 'Fira Code', monospace; font-size: 12px;
+  cursor: pointer; transition: background .15s;
+}
+.api-entry:hover { background: var(--surface2); }
+.api-entry .api-method {
+  display: inline-block; width: 40px; font-weight: 700; font-size: 10px;
+  text-align: center; padding: 1px 0; border-radius: 3px; margin-right: 6px;
+}
+.api-entry .api-method.get { background: rgba(74,222,128,.15); color: var(--green); }
+.api-entry .api-method.post { background: rgba(108,138,255,.15); color: var(--accent); }
+.api-entry .api-url { color: var(--text); word-break: break-all; }
+.api-entry .api-meta { color: var(--text2); font-size: 11px; margin-top: 3px; }
+.api-entry .api-status { font-weight: 600; }
+.api-entry .api-status.ok { color: var(--green); }
+.api-entry .api-status.err { color: var(--red); }
+.api-detail { display: none; margin-top: 6px; }
+.api-detail.open { display: block; }
+.api-detail pre {
+  background: var(--bg); padding: 8px 10px; border-radius: var(--radius);
+  font-size: 11px; max-height: 180px; overflow: auto; white-space: pre-wrap;
+  word-break: break-all; color: var(--text2); margin-top: 4px;
+  border: 1px solid var(--border);
+}
+.api-detail label { font-size: 10px; text-transform: uppercase; letter-spacing: .5px; color: var(--text2); font-weight: 600; margin-top: 6px; display: block; }
+
+/* API log toggle bar */
+.api-toggle-bar {
+  position: fixed; bottom: 0; left: 0; right: 0; z-index: 899;
+  background: var(--surface); border-top: 1px solid var(--border);
+  padding: 4px 16px; display: flex; align-items: center; gap: 10px;
+  font-size: 12px; cursor: pointer; user-select: none;
+}
+.api-toggle-bar .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); animation: pulse 2s infinite; }
+@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .4; } }
+.api-toggle-bar .count { color: var(--text2); margin-left: auto; font-size: 11px; }
+
+/* Data Sources modal */
+.modal-overlay {
+  position: fixed; inset: 0; z-index: 1000; background: rgba(0,0,0,.6);
+  display: none; align-items: center; justify-content: center;
+  backdrop-filter: blur(3px);
+}
+.modal-overlay.open { display: flex; }
+.modal {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+  width: 90%; max-width: 780px; max-height: 85vh; display: flex; flex-direction: column;
+  box-shadow: 0 8px 32px rgba(0,0,0,.5);
+}
+.modal-header {
+  padding: 16px 20px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 12px;
+}
+.modal-header h3 { font-size: 16px; font-weight: 600; flex: 1; }
+.modal-close { background: none; border: none; color: var(--text2); font-size: 20px; cursor: pointer; padding: 4px 8px; }
+.modal-close:hover { color: var(--text); }
+.modal-body { padding: 20px; overflow-y: auto; }
+
+.src-section { margin-bottom: 20px; }
+.src-section h4 { font-size: 14px; font-weight: 600; margin-bottom: 8px; color: var(--accent); }
+.src-table { width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: 10px; }
+.src-table th { text-align: left; padding: 6px 10px; background: var(--surface2); color: var(--text2); font-size: 11px; text-transform: uppercase; }
+.src-table td { padding: 6px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+.src-table code { background: var(--bg); padding: 1px 5px; border-radius: 3px; font-size: 11px; color: var(--glyco); }
+.src-badge { display: inline-block; padding: 1px 6px; border-radius: 3px; font-size: 10px; font-weight: 600; }
+.src-badge.glygen { background: rgba(78,205,196,.12); color: var(--glyco); }
+.src-badge.uniprot { background: rgba(108,138,255,.12); color: var(--accent); }
+.src-badge.iptmnet { background: rgba(255,107,107,.12); color: var(--phospho); }
+.src-badge.biomuta { background: rgba(239,68,68,.12); color: var(--red); }
+.src-badge.unicarbkb { background: rgba(74,222,128,.12); color: var(--green); }
 </style>
 </head>
 <body>
@@ -298,6 +385,7 @@ tr:hover td { background: rgba(108,138,255,.04); }
   <h1><span class="hl">CFDE</span> PTM Explorer</h1>
   <span class="subtitle">Post-Translational Modifications in Neurodegenerative Disease Proteins</span>
   <div class="hdr-badges">
+    <span class="hdr-badge" style="cursor:pointer" onclick="openDataSources()">Data Sources</span>
     <span class="hdr-badge">GlyGen</span>
     <span class="hdr-badge">UniProt</span>
     <span class="hdr-badge">iPTMnet</span>
@@ -425,6 +513,163 @@ tr:hover td { background: rgba(108,138,255,.04); }
   </div>
 </div>
 
+<!-- API Log Toggle Bar -->
+<div class="api-toggle-bar" onclick="toggleApiDrawer()">
+  <div class="dot"></div>
+  <span>API Request Log</span>
+  <span class="count" id="apiCount">0 requests</span>
+  <span style="font-size:11px;color:var(--text2)">&#9650;</span>
+</div>
+
+<!-- API Log Drawer -->
+<div class="api-drawer" id="apiDrawer">
+  <div class="api-drawer-header" onclick="toggleApiDrawer()">
+    <h4>API Request Log</h4>
+    <button class="btn btn-outline btn-sm" onclick="event.stopPropagation(); clearApiLog()">Clear</button>
+    <button class="btn btn-outline btn-sm" onclick="event.stopPropagation(); copyApiLog()">Copy All</button>
+    <span style="font-size:14px;color:var(--text2)">&#9660;</span>
+  </div>
+  <div class="api-drawer-body" id="apiLogBody">
+    <div style="padding:20px;text-align:center;color:var(--text2);font-size:13px">No API requests yet. Search for a protein or disease to see live requests.</div>
+  </div>
+</div>
+
+<!-- Data Sources Modal -->
+<div class="modal-overlay" id="dataSourcesModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>Data Sources &amp; API Methods</h3>
+      <button class="modal-close" onclick="closeDataSources()">&times;</button>
+    </div>
+    <div class="modal-body">
+
+      <div class="src-section">
+        <h4>GlyGen REST API</h4>
+        <p style="font-size:12px;color:var(--text2);margin-bottom:10px">
+          <a href="https://api.glygen.org/" target="_blank">https://api.glygen.org</a> &mdash;
+          Swagger-documented, all endpoints use <code>POST</code> with JSON bodies. GlyGen aggregates data from
+          multiple upstream databases into a unified MongoDB document store.
+        </p>
+        <table class="src-table">
+          <thead><tr><th>Endpoint</th><th>Data Returned</th><th>Upstream Sources</th><th>Used In</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><code>POST /protein/detail/{ac}/</code></td>
+              <td>Full protein record: glycosylation sites, phosphorylation, SNVs, disease links, pathways, PTM annotations, sequence</td>
+              <td><span class="src-badge unicarbkb">UniCarbKB</span> <span class="src-badge uniprot">UniProtKB</span> <span class="src-badge iptmnet">iPTMnet</span> <span class="src-badge biomuta">BioMuta</span></td>
+              <td>Protein Search</td>
+            </tr>
+            <tr>
+              <td><code>POST /protein/search_simple/</code></td>
+              <td>List ID for paginated results by accession, gene name, or keyword</td>
+              <td><span class="src-badge glygen">GlyGen index</span></td>
+              <td>Protein Search (gene name resolution)</td>
+            </tr>
+            <tr>
+              <td><code>POST /protein/list/</code></td>
+              <td>Paginated protein list from a search; includes summary counts</td>
+              <td><span class="src-badge glygen">GlyGen index</span></td>
+              <td>Protein Search (gene name resolution)</td>
+            </tr>
+            <tr>
+              <td><code>POST /disease/detail/{doid}/</code></td>
+              <td>Disease record: associated proteins (all species), glycans, biomarkers, children diseases</td>
+              <td><span class="src-badge glygen">Disease Ontology</span> <span class="src-badge uniprot">AGR</span></td>
+              <td>Disease Explorer</td>
+            </tr>
+            <tr>
+              <td><code>POST /disease/search_simple/</code></td>
+              <td>Disease search by name/ID</td>
+              <td><span class="src-badge glygen">Disease Ontology</span></td>
+              <td>Disease Explorer (name resolution)</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="src-section">
+        <h4>UniProt REST API</h4>
+        <p style="font-size:12px;color:var(--text2);margin-bottom:10px">
+          <a href="https://rest.uniprot.org/" target="_blank">https://rest.uniprot.org</a> &mdash;
+          RESTful, uses <code>GET</code>. Returns JSON with protein features, disease annotations, GO terms.
+        </p>
+        <table class="src-table">
+          <thead><tr><th>Endpoint</th><th>Data Returned</th><th>Upstream Sources</th><th>Used In</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><code>GET /uniprotkb/{ac}.json</code></td>
+              <td>Full UniProt entry: features (Modified residue, Glycosylation, Lipidation), disease comments, function, GO annotations</td>
+              <td><span class="src-badge uniprot">UniProtKB</span> (expert-curated + automatic annotation)</td>
+              <td>Protein Search</td>
+            </tr>
+            <tr>
+              <td><code>GET /uniprotkb/search?query=gene_exact:...</code></td>
+              <td>Protein accession resolution from gene name</td>
+              <td><span class="src-badge uniprot">UniProtKB</span></td>
+              <td>Protein Search (gene name resolution)</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="src-section">
+        <h4>Data Capture Methods by PTM Type</h4>
+        <table class="src-table">
+          <thead><tr><th>PTM Type</th><th>Primary Source</th><th>How Captured</th><th>Evidence Levels</th></tr></thead>
+          <tbody>
+            <tr>
+              <td>Glycosylation (N/O/C-linked)</td>
+              <td><span class="src-badge glygen">GlyGen</span> <span class="src-badge unicarbkb">UniCarbKB</span></td>
+              <td>Mass spectrometry experiments, database curation, text mining of PubMed abstracts, computational prediction (NetNGlyc, NetOGlyc)</td>
+              <td>Reported with glycan, Reported sites, Predicted only, Text mining</td>
+            </tr>
+            <tr>
+              <td>Phosphorylation</td>
+              <td><span class="src-badge iptmnet">iPTMnet</span> <span class="src-badge uniprot">UniProtKB</span></td>
+              <td>Experimental: mass spectrometry, radiolabeling, Edman degradation, antibody-based. Curated from literature by UniProtKB and iPTMnet. Includes kinase-substrate relationships.</td>
+              <td>Experimental evidence codes (ECO terms)</td>
+            </tr>
+            <tr>
+              <td>Acetylation, Methylation, SUMOylation, Ubiquitination</td>
+              <td><span class="src-badge uniprot">UniProtKB</span></td>
+              <td>Expert curation from published literature. "Modified residue" feature type in UniProt entries.</td>
+              <td>ECO evidence codes per annotation</td>
+            </tr>
+            <tr>
+              <td>SNVs / Mutations</td>
+              <td><span class="src-badge biomuta">BioMuta</span> <span class="src-badge uniprot">UniProtKB</span></td>
+              <td>BioMuta: text mining + manual curation of disease-associated nonsynonymous SNVs from TCGA, ICGC, ClinVar. UniProtKB: curated from literature.</td>
+              <td>Disease-associated, Non-disease, COSMIC (cancer)</td>
+            </tr>
+            <tr>
+              <td>Disease Associations</td>
+              <td><span class="src-badge glygen">Disease Ontology</span> <span class="src-badge uniprot">UniProtKB</span> AGR</td>
+              <td>Disease Ontology (DOID) terms linked to proteins via Alliance of Genome Resources (AGR), MIM (OMIM), and UniProtKB disease comments.</td>
+              <td>Curated, automated gene-disease associations</td>
+            </tr>
+            <tr>
+              <td>Pathways</td>
+              <td><span class="src-badge glygen">GlyGen</span></td>
+              <td>Cross-references to Reactome, KEGG Pathway, and UniPathway extracted from UniProtKB records.</td>
+              <td>Database cross-references</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="src-section">
+        <h4>How This Dashboard Assembles Data</h4>
+        <div style="font-size:12px;color:var(--text2);line-height:1.7">
+          <p><strong>Protein Search mode:</strong> Fetches from both GlyGen (<code>/protein/detail</code>) and UniProt (<code>/uniprotkb/{ac}.json</code>) in parallel. GlyGen provides richer glycosylation data (site categories, GlyTouCan accessions, text mining), phosphorylation with kinase annotations (from iPTMnet), SNVs (from BioMuta), and pathways. UniProt provides broader PTM coverage (acetylation, ubiquitination, lipidation, etc.) and protein function text. The two sources are merged and deduplicated by position + PTM type, keeping the record with more evidence.</p>
+          <p style="margin-top:8px"><strong>Disease Explorer mode:</strong> Fetches from GlyGen (<code>/disease/detail/{doid}</code>) to get all human proteins associated with a disease. Then batch-fetches <code>/protein/detail/{ac}</code> for the top N glycoproteins (3 concurrent requests). For each protein, computes glycosylation/phosphorylation counts, identifies SNVs within 3 residues of PTM sites, and flags disease-associated SNVs as high-impact candidates.</p>
+          <p style="margin-top:8px"><strong>Gene name resolution:</strong> If the user enters a gene name instead of a UniProt accession, the tool first queries UniProt's search API (<code>/uniprotkb/search?query=gene_exact:...</code>). If that fails, it falls back to GlyGen's simple search (<code>/protein/search_simple</code>).</p>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
 <script>
 // ========================================================
 // STATE
@@ -434,6 +679,123 @@ let activeFilters = new Set();
 let sortCol = 'position';
 let sortDir = 'asc';
 let glycSort = { col: 'start_pos', asc: true };
+
+// ========================================================
+// API REQUEST LOG (fetch interceptor)
+// ========================================================
+const apiLog = [];
+const _origFetch = window.fetch;
+window.fetch = async function(url, opts = {}) {
+  const entry = {
+    id: apiLog.length,
+    ts: new Date(),
+    method: (opts.method || 'GET').toUpperCase(),
+    url: typeof url === 'string' ? url : url.url,
+    requestBody: opts.body || null,
+    status: null,
+    statusText: '',
+    responseSize: null,
+    responsePreview: null,
+    duration: 0,
+    error: null
+  };
+  const t0 = performance.now();
+  try {
+    const resp = await _origFetch.call(window, url, opts);
+    entry.status = resp.status;
+    entry.statusText = resp.statusText;
+    entry.duration = Math.round(performance.now() - t0);
+    // Clone response to read body without consuming it
+    const clone = resp.clone();
+    try {
+      const text = await clone.text();
+      entry.responseSize = text.length;
+      entry.responsePreview = text.substring(0, 2000);
+    } catch {}
+    apiLog.push(entry);
+    updateApiLogUI();
+    return resp;
+  } catch (err) {
+    entry.duration = Math.round(performance.now() - t0);
+    entry.error = err.message;
+    entry.status = 0;
+    apiLog.push(entry);
+    updateApiLogUI();
+    throw err;
+  }
+};
+
+function updateApiLogUI() {
+  document.getElementById('apiCount').textContent = apiLog.length + ' request' + (apiLog.length !== 1 ? 's' : '');
+  const body = document.getElementById('apiLogBody');
+  // Render last 100 entries, newest first
+  const entries = apiLog.slice(-100).reverse();
+  body.innerHTML = entries.map(e => {
+    const isOk = e.status >= 200 && e.status < 400;
+    const methodCls = e.method === 'GET' ? 'get' : 'post';
+    const sizeTxt = e.responseSize != null ? (e.responseSize > 1024 ? (e.responseSize / 1024).toFixed(1) + ' KB' : e.responseSize + ' B') : '?';
+    const shortUrl = e.url.replace('https://api.glygen.org', 'glygen:').replace('https://rest.uniprot.org', 'uniprot:');
+    return `<div class="api-entry" onclick="toggleApiDetail(${e.id})">
+      <span class="api-method ${methodCls}">${e.method}</span>
+      <span class="api-url">${shortUrl}</span>
+      <div class="api-meta">
+        <span class="api-status ${isOk ? 'ok' : 'err'}">${e.status || 'ERR'}</span>
+        &middot; ${e.duration}ms &middot; ${sizeTxt}
+        &middot; ${e.ts.toLocaleTimeString()}
+        ${e.error ? ` &middot; <span style="color:var(--red)">${e.error}</span>` : ''}
+      </div>
+      <div class="api-detail" id="apiDetail${e.id}">
+        ${e.requestBody ? `<label>Request Body</label><pre>${formatJSON(e.requestBody)}</pre>` : ''}
+        <label>Response Preview (first 2 KB)</label>
+        <pre>${e.responsePreview ? escapeHtml(formatJSON(e.responsePreview)) : '(empty)'}</pre>
+        <label>Full URL</label>
+        <pre>${escapeHtml(e.url)}</pre>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function toggleApiDetail(id) {
+  const el = document.getElementById('apiDetail' + id);
+  if (el) el.classList.toggle('open');
+}
+
+function toggleApiDrawer() {
+  document.getElementById('apiDrawer').classList.toggle('open');
+}
+
+function clearApiLog() {
+  apiLog.length = 0;
+  updateApiLogUI();
+}
+
+function copyApiLog() {
+  const text = apiLog.map(e => {
+    let s = `${e.method} ${e.url}\nStatus: ${e.status} | ${e.duration}ms | ${e.ts.toISOString()}`;
+    if (e.requestBody) s += `\nRequest: ${e.requestBody}`;
+    return s;
+  }).join('\n\n');
+  navigator.clipboard.writeText(text).then(() => alert('API log copied to clipboard'));
+}
+
+function formatJSON(str) {
+  if (!str) return '';
+  try {
+    const obj = typeof str === 'string' ? JSON.parse(str) : str;
+    return JSON.stringify(obj, null, 2);
+  } catch { return typeof str === 'string' ? str : JSON.stringify(str); }
+}
+
+function escapeHtml(s) {
+  return (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+// Data Sources modal
+function openDataSources() { document.getElementById('dataSourcesModal').classList.add('open'); }
+function closeDataSources() { document.getElementById('dataSourcesModal').classList.remove('open'); }
+document.getElementById('dataSourcesModal').addEventListener('click', function(e) {
+  if (e.target === this) closeDataSources();
+});
 
 const PTM_COLORS = {
   Phosphorylation: '#ff6b6b',
