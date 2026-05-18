@@ -1,0 +1,1052 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CFDE PTM Explorer - Neurodegenerative Disease Dashboard</title>
+<style>
+:root {
+  --bg: #0f1117;
+  --surface: #1a1d27;
+  --surface2: #242836;
+  --border: #2e3348;
+  --text: #e2e4eb;
+  --text2: #9498ad;
+  --accent: #6c8aff;
+  --accent2: #4a6ade;
+  --phospho: #ff6b6b;
+  --glyco: #4ecdc4;
+  --acetyl: #ffd93d;
+  --ubiq: #c084fc;
+  --sumo: #fb923c;
+  --methyl: #a78bfa;
+  --lipid: #22d3ee;
+  --other: #94a3b8;
+  --green: #4ade80;
+  --orange: #f59e0b;
+  --red: #ef4444;
+  --pink: #f472b6;
+  --radius: 8px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  line-height: 1.5;
+}
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+/* ---- Header ---- */
+header {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 14px 24px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+header h1 { font-size: 20px; font-weight: 600; white-space: nowrap; }
+header h1 .hl { color: var(--accent); }
+header .subtitle { font-size: 13px; color: var(--text2); flex: 1; }
+.hdr-badges { display: flex; gap: 6px; flex-wrap: wrap; }
+.hdr-badge {
+  font-size: 10px; padding: 3px 8px; border-radius: 12px;
+  background: var(--surface2); border: 1px solid var(--border); color: var(--text2);
+  text-transform: uppercase; letter-spacing: .5px; font-weight: 600;
+}
+.hdr-badge.live { background: rgba(74,222,128,.12); color: var(--green); border-color: rgba(74,222,128,.25); }
+
+/* ---- Layout ---- */
+.app { display: flex; height: calc(100vh - 52px); }
+.sidebar {
+  width: 320px; min-width: 320px;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  display: flex; flex-direction: column;
+  overflow-y: auto;
+}
+.main { flex: 1; overflow-y: auto; padding: 20px; }
+@media (max-width: 860px) {
+  .app { flex-direction: column; height: auto; }
+  .sidebar { width: 100%; min-width: 100%; border-right: none; border-bottom: 1px solid var(--border); max-height: 360px; }
+}
+
+/* ---- Sidebar sections ---- */
+.section { padding: 14px 16px; border-bottom: 1px solid var(--border); }
+.section-title {
+  font-size: 11px; text-transform: uppercase; letter-spacing: .8px;
+  color: var(--text2); margin-bottom: 8px; font-weight: 600;
+}
+label { display: block; font-size: 12px; color: var(--text2); margin-bottom: 4px; font-weight: 500; }
+select, input[type="text"] {
+  width: 100%; padding: 8px 10px;
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: var(--radius); color: var(--text); font-size: 13px;
+  outline: none; transition: border-color .2s;
+}
+select:focus, input[type="text"]:focus { border-color: var(--accent); }
+.form-row { margin-bottom: 10px; }
+
+/* Buttons */
+.btn {
+  padding: 9px 18px; border: none; border-radius: var(--radius);
+  font-size: 13px; font-weight: 500; cursor: pointer; transition: all .2s;
+  display: inline-flex; align-items: center; gap: 6px;
+}
+.btn-primary { background: var(--accent2); color: #fff; width: 100%; justify-content: center; }
+.btn-primary:hover { background: var(--accent); }
+.btn-primary:disabled { opacity: .5; cursor: not-allowed; }
+.btn-sm { padding: 4px 10px; font-size: 12px; }
+.btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text2); }
+.btn-outline:hover { border-color: var(--accent); color: var(--accent); }
+
+/* Preset chips */
+.preset-grid { display: flex; flex-wrap: wrap; gap: 5px; }
+.preset-btn {
+  padding: 3px 9px; background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 14px; color: var(--text); font-size: 11px; cursor: pointer; transition: all .2s;
+}
+.preset-btn:hover { border-color: var(--accent); color: var(--accent); }
+.preset-btn.active { background: var(--accent2); border-color: var(--accent); color: #fff; }
+
+/* ---- Cards ---- */
+.card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); margin-bottom: 16px; overflow: hidden;
+}
+.card-header {
+  padding: 12px 16px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 12px;
+}
+.card-header h3 { font-size: 14px; font-weight: 600; flex: 1; }
+.card-body { padding: 16px; }
+
+/* Stats */
+.stats-row {
+  display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 16px;
+}
+.stat-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 12px 16px; text-align: center;
+  flex: 1; min-width: 110px;
+}
+.stat-val { font-size: 26px; font-weight: 700; }
+.stat-lbl { font-size: 11px; color: var(--text2); margin-top: 2px; text-transform: uppercase; letter-spacing: .3px; }
+
+/* Table */
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th {
+  text-align: left; padding: 8px 12px; background: var(--surface2);
+  border-bottom: 1px solid var(--border); font-weight: 600; font-size: 11px;
+  text-transform: uppercase; letter-spacing: .4px; color: var(--text2);
+  white-space: nowrap; cursor: pointer; user-select: none; position: sticky; top: 0;
+}
+th:hover { color: var(--text); }
+td { padding: 7px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+tr:hover td { background: rgba(108,138,255,.04); }
+
+/* Badges & pills */
+.ptm-badge {
+  display: inline-block; padding: 2px 8px; border-radius: 10px;
+  font-size: 11px; font-weight: 500;
+}
+.ev-pill {
+  display: inline-block; padding: 1px 6px; border-radius: 3px; font-size: 10px;
+  margin: 1px; background: var(--surface2); border: 1px solid var(--border); color: var(--text2);
+}
+.ev-pill a { color: var(--accent); }
+.disease-chip {
+  display: inline-block; padding: 3px 8px; border-radius: 4px; font-size: 11px;
+  background: rgba(244,114,182,.1); border: 1px solid rgba(244,114,182,.25); color: var(--pink);
+}
+
+/* Tabs */
+.tabs { display: flex; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+.tab {
+  padding: 9px 14px; font-size: 13px; cursor: pointer;
+  border-bottom: 2px solid transparent; color: var(--text2); transition: all .2s;
+  white-space: nowrap;
+}
+.tab:hover { color: var(--text); }
+.tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+
+/* Filter row */
+.filter-row { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; align-items: center; }
+.chip {
+  font-size: 11px; padding: 3px 10px; border-radius: 14px; cursor: pointer;
+  border: 1px solid var(--border); background: var(--surface2); color: var(--text2); transition: all .2s;
+}
+.chip.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+.chip:hover { border-color: var(--accent); }
+.filter-count { font-size: 12px; color: var(--text2); margin-left: auto; }
+
+/* Loading / empty */
+.loading { display: flex; align-items: center; justify-content: center; padding: 50px; gap: 12px; color: var(--text2); }
+.spinner { width: 22px; height: 22px; border: 2.5px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin .8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.empty { text-align: center; padding: 60px 20px; color: var(--text2); }
+.empty h3 { font-size: 16px; margin-bottom: 8px; color: var(--text); }
+.empty p { font-size: 13px; max-width: 440px; margin: 0 auto; line-height: 1.6; }
+.error-msg { background: rgba(239,68,68,.1); border: 1px solid rgba(239,68,68,.3); padding: 12px 16px; border-radius: var(--radius); color: var(--red); font-size: 13px; margin: 16px 0; }
+
+/* Protein header */
+.protein-hdr { display: flex; align-items: flex-start; gap: 14px; flex-wrap: wrap; }
+.protein-hdr .meta { flex: 1; min-width: 200px; }
+.protein-hdr .gene-tag { display: inline-block; background: var(--accent2); color: #fff; padding: 2px 10px; border-radius: 4px; font-size: 13px; font-weight: 600; margin-right: 6px; }
+.protein-hdr .ac-tag { color: var(--text2); font-size: 13px; }
+.protein-hdr .prot-name { font-size: 16px; font-weight: 600; margin-top: 4px; }
+.protein-hdr .prot-func { font-size: 12px; color: var(--text2); margin-top: 6px; line-height: 1.5; }
+.protein-links { display: flex; gap: 6px; flex-wrap: wrap; }
+.protein-links a { padding: 4px 10px; background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius); font-size: 12px; }
+
+/* Crosstalk */
+.crosstalk-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 10px; }
+.crosstalk-card { background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; }
+.crosstalk-pos { font-weight: 600; font-size: 14px; color: var(--glyco); }
+.crosstalk-mods { margin-top: 6px; display: flex; flex-wrap: wrap; gap: 4px; }
+
+/* Pathways */
+.pathway-item { display: flex; align-items: center; gap: 8px; padding: 5px 10px; background: var(--surface2); border-radius: var(--radius); font-size: 13px; margin-bottom: 4px; }
+.pathway-src { font-size: 10px; padding: 2px 6px; border-radius: 8px; background: var(--bg); color: var(--text2); white-space: nowrap; }
+
+/* PTM annotation blocks */
+.ptm-annot { background: var(--surface2); border-left: 3px solid var(--accent); padding: 10px 14px; margin: 8px 0; font-size: 13px; line-height: 1.6; border-radius: 0 var(--radius) var(--radius) 0; }
+
+/* Canvas map */
+#ptmCanvas { width: 100%; cursor: crosshair; }
+.map-tooltip {
+  display: none; position: absolute; background: var(--surface2);
+  border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 10px 14px; font-size: 12px; z-index: 100; max-width: 320px;
+  pointer-events: none; box-shadow: 0 4px 12px rgba(0,0,0,.4);
+}
+.tt-type { font-weight: 600; margin-bottom: 3px; }
+.tt-detail { color: var(--text2); font-size: 12px; line-height: 1.5; }
+
+/* Legend */
+.ptm-legend { display: flex; gap: 14px; flex-wrap: wrap; padding: 8px 0; border-top: 1px solid var(--border); margin-top: 10px; }
+.legend-item { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--text2); }
+.legend-dot { width: 10px; height: 10px; border-radius: 50%; }
+
+/* Export */
+.export-btns { display: flex; gap: 6px; }
+
+.hidden { display: none !important; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1><span class="hl">CFDE</span> PTM Explorer</h1>
+  <span class="subtitle">Post-Translational Modifications in Neurodegenerative Disease Proteins</span>
+  <div class="hdr-badges">
+    <span class="hdr-badge">GlyGen</span>
+    <span class="hdr-badge">UniProt</span>
+    <span class="hdr-badge">iPTMnet</span>
+    <span class="hdr-badge live">Live API</span>
+  </div>
+</header>
+
+<div class="app">
+  <!-- ======== SIDEBAR ======== -->
+  <div class="sidebar">
+    <div class="section">
+      <div class="section-title">Search</div>
+      <div class="form-row">
+        <label>Protein (UniProt accession or gene name)</label>
+        <input type="text" id="searchInput" placeholder="e.g. P05067, MAPT, SNCA, APP" />
+      </div>
+      <div class="form-row">
+        <label>Organism</label>
+        <select id="orgSelect">
+          <option value="9606" selected>Human (Homo sapiens)</option>
+          <option value="10090">Mouse</option>
+          <option value="10116">Rat</option>
+        </select>
+      </div>
+      <button class="btn btn-primary" id="searchBtn" onclick="doSearch()">Search</button>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Neurodegenerative Disease Proteins</div>
+      <label style="margin-bottom:5px">Alzheimer's Disease</label>
+      <div class="preset-grid" style="margin-bottom:10px">
+        <button class="preset-btn" onclick="quickSearch('P05067')">APP</button>
+        <button class="preset-btn" onclick="quickSearch('P49768')">PSEN1</button>
+        <button class="preset-btn" onclick="quickSearch('P10636')">MAPT/Tau</button>
+        <button class="preset-btn" onclick="quickSearch('P56817')">BACE1</button>
+        <button class="preset-btn" onclick="quickSearch('Q9NZC2')">TREM2</button>
+        <button class="preset-btn" onclick="quickSearch('P02649')">APOE</button>
+      </div>
+      <label style="margin-bottom:5px">Parkinson's Disease</label>
+      <div class="preset-grid" style="margin-bottom:10px">
+        <button class="preset-btn" onclick="quickSearch('P37840')">SNCA</button>
+        <button class="preset-btn" onclick="quickSearch('Q5S007')">LRRK2</button>
+        <button class="preset-btn" onclick="quickSearch('Q99497')">PARK7/DJ-1</button>
+        <button class="preset-btn" onclick="quickSearch('Q9BXM7')">PINK1</button>
+        <button class="preset-btn" onclick="quickSearch('P04062')">GBA</button>
+      </div>
+      <label style="margin-bottom:5px">ALS / Huntington's / FTD</label>
+      <div class="preset-grid">
+        <button class="preset-btn" onclick="quickSearch('P00441')">SOD1</button>
+        <button class="preset-btn" onclick="quickSearch('Q13148')">TDP-43</button>
+        <button class="preset-btn" onclick="quickSearch('P35637')">FUS</button>
+        <button class="preset-btn" onclick="quickSearch('P42858')">HTT</button>
+        <button class="preset-btn" onclick="quickSearch('P04156')">PRNP</button>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">About</div>
+      <p style="font-size:11px; color:var(--text2); line-height:1.6">
+        Queries <a href="https://api.glygen.org/" target="_blank">GlyGen</a> and
+        <a href="https://rest.uniprot.org/" target="_blank">UniProt</a> APIs in real time.
+        Retrieves glycosylation, phosphorylation, acetylation, ubiquitination, and other PTMs
+        plus disease associations, pathways, SNVs, and PTM crosstalk data.<br><br>
+        Data sources: UniProtKB, iPTMnet, BioMuta, UniCarbKB, PubMed.
+      </p>
+    </div>
+  </div>
+
+  <!-- ======== MAIN ======== -->
+  <div class="main" id="mainArea">
+    <div class="empty" id="emptyState">
+      <h3>Search for a protein to explore its PTM landscape</h3>
+      <p>Enter a UniProt accession (e.g. P05067) or gene name, or click a preset neurodegenerative
+        disease protein. This tool queries both GlyGen and UniProt live APIs to build a unified view
+        of all post-translational modifications, disease links, and pathways.</p>
+    </div>
+    <div class="loading hidden" id="loadingState">
+      <div class="spinner"></div>Fetching PTM data from GlyGen &amp; UniProt...
+    </div>
+    <div id="resultsArea" class="hidden"></div>
+  </div>
+</div>
+
+<script>
+// ========================================================
+// STATE
+// ========================================================
+let currentData = null;
+let activeFilters = new Set();
+let sortCol = 'position';
+let sortDir = 'asc';
+let glycSort = { col: 'start_pos', asc: true };
+
+const PTM_COLORS = {
+  Phosphorylation: '#ff6b6b',
+  'O-GlcNAcylation': '#4ecdc4',
+  'N-Glycosylation': '#4ade80',
+  'O-Glycosylation': '#22d3ee',
+  'C-Glycosylation': '#f59e0b',
+  Glycosylation: '#4ecdc4',
+  Acetylation: '#ffd93d',
+  Ubiquitination: '#c084fc',
+  SUMOylation: '#fb923c',
+  Methylation: '#a78bfa',
+  Lipidation: '#22d3ee',
+  Nitration: '#f97316',
+  Other: '#94a3b8'
+};
+function getPTMColor(type) {
+  for (const [k, c] of Object.entries(PTM_COLORS)) {
+    if (type.toLowerCase().includes(k.toLowerCase())) return c;
+  }
+  return PTM_COLORS.Other;
+}
+function classifyPTM(desc) {
+  const d = (desc || '').toLowerCase();
+  if (d.includes('phospho')) return 'Phosphorylation';
+  if (d.includes('glcnac') || d.includes('o-glcnac')) return 'O-GlcNAcylation';
+  if (d.includes('n-linked') || d.includes('n-glyco')) return 'N-Glycosylation';
+  if (d.includes('o-linked') || d.includes('o-glyco') || d.includes('o-galact') || d.includes('o-galnac') || d.includes('o-manno') || d.includes('o-gluco') || d.includes('o-fuco')) return 'O-Glycosylation';
+  if (d.includes('c-linked') || d.includes('c-manno')) return 'C-Glycosylation';
+  if (d.includes('glyco')) return 'Glycosylation';
+  if (d.includes('acetyl') && !d.includes('n-acetylmethionine')) return 'Acetylation';
+  if (d.includes('ubiquit')) return 'Ubiquitination';
+  if (d.includes('sumo')) return 'SUMOylation';
+  if (d.includes('lipid') || d.includes('palmitoyl') || d.includes('myristoyl') || d.includes('prenyl') || d.includes('farnesyl') || d.includes('geranyl')) return 'Lipidation';
+  if (d.includes('methyl')) return 'Methylation';
+  if (d.includes('nitrat')) return 'Nitration';
+  return 'Other';
+}
+
+const NEURO_RE = /(alzheimer|parkinson|huntington|amyotrophic|dementia|neurodegenerat|prion|ataxia|sclerosis|lewy|tau|amyloid|encephalopath)/i;
+
+// ========================================================
+// SEARCH
+// ========================================================
+function quickSearch(ac) {
+  document.getElementById('searchInput').value = ac;
+  document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+  if (event && event.target) event.target.classList.add('active');
+  doSearch();
+}
+
+async function doSearch() {
+  const term = document.getElementById('searchInput').value.trim();
+  if (!term) return;
+  const orgId = document.getElementById('orgSelect').value;
+
+  document.getElementById('emptyState').classList.add('hidden');
+  document.getElementById('resultsArea').classList.add('hidden');
+  document.getElementById('loadingState').classList.remove('hidden');
+  document.getElementById('searchBtn').disabled = true;
+
+  try {
+    let accession = term;
+    const isAc = /^[A-Z][0-9][A-Z0-9]{3}[0-9](-\d+)?$/i.test(term);
+
+    if (!isAc) {
+      // Resolve gene name via UniProt
+      const uniRes = await fetch(`https://rest.uniprot.org/uniprotkb/search?query=gene_exact:${encodeURIComponent(term)}+AND+organism_id:${orgId}&fields=accession&format=json&size=1`);
+      const uniData = await uniRes.json();
+      if (uniData.results && uniData.results.length > 0) {
+        accession = uniData.results[0].primaryAccession;
+      } else {
+        const uniRes2 = await fetch(`https://rest.uniprot.org/uniprotkb/search?query=gene:${encodeURIComponent(term)}+AND+organism_id:${orgId}&fields=accession&format=json&size=1`);
+        const uniData2 = await uniRes2.json();
+        if (uniData2.results && uniData2.results.length > 0) {
+          accession = uniData2.results[0].primaryAccession;
+        } else {
+          throw new Error(`No protein found for "${term}". Try a UniProt accession.`);
+        }
+      }
+    }
+
+    const baseAcc = accession.split('-')[0];
+    const canonical = baseAcc;
+
+    // Fetch UniProt + GlyGen in parallel
+    const [uniprotRes, glygenRes] = await Promise.allSettled([
+      fetch(`https://rest.uniprot.org/uniprotkb/${baseAcc}.json`).then(r => r.json()),
+      fetch(`https://api.glygen.org/protein/detail/${canonical}/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({})
+      }).then(r => r.json())
+    ]);
+
+    const uniprot = uniprotRes.status === 'fulfilled' ? uniprotRes.value : null;
+    const glygen = glygenRes.status === 'fulfilled' && !glygenRes.value?.error_list ? glygenRes.value : null;
+
+    if (!uniprot && !glygen) throw new Error(`Could not retrieve data for ${accession} from either source.`);
+
+    currentData = assembleData(uniprot, glygen, baseAcc, term);
+    activeFilters.clear();
+    sortCol = 'position'; sortDir = 'asc';
+    glycSort = { col: 'start_pos', asc: true };
+    renderAll();
+  } catch (err) {
+    document.getElementById('loadingState').classList.add('hidden');
+    document.getElementById('resultsArea').innerHTML = `<div class="error-msg">${err.message}</div><div class="empty"><p>Try a different gene name or UniProt accession.</p></div>`;
+    document.getElementById('resultsArea').classList.remove('hidden');
+  }
+  document.getElementById('searchBtn').disabled = false;
+}
+
+// ========================================================
+// DATA ASSEMBLY
+// ========================================================
+function assembleData(uniprot, glygen, accession, searchTerm) {
+  const data = {
+    accession, searchTerm,
+    geneName: '', proteinName: '', organism: '', length: 0, funcText: '',
+    ptms: [],
+    glycosylation: [],   // raw GlyGen glycosylation (for detailed tab)
+    phosphorylation: [],  // raw GlyGen phosphorylation
+    snv: [],
+    diseases: [],
+    pathways: [],
+    ptmAnnotation: [],
+    sources: { uniprot: !!uniprot, glygen: !!glygen }
+  };
+
+  // -- UniProt basics --
+  if (uniprot) {
+    data.geneName = uniprot.genes?.[0]?.geneName?.value || searchTerm;
+    data.proteinName = uniprot.proteinDescription?.recommendedName?.fullName?.value ||
+                       uniprot.proteinDescription?.submittedName?.[0]?.fullName?.value || '';
+    data.organism = uniprot.organism?.scientificName || '';
+    data.length = uniprot.sequence?.length || 0;
+    data.funcText = (uniprot.comments || []).find(c => c.commentType === 'FUNCTION')?.texts?.[0]?.value || '';
+
+    // PTMs from UniProt features
+    for (const f of (uniprot.features || [])) {
+      if (['Modified residue', 'Glycosylation', 'Lipidation', 'Cross-link', 'Disulfide bond'].includes(f.type)) {
+        const desc = f.description || f.type;
+        data.ptms.push({
+          position: f.location?.start?.value || 0,
+          endPosition: f.location?.end?.value || f.location?.start?.value || 0,
+          residue: '', type: classifyPTM(desc), description: desc,
+          source: 'UniProt',
+          evidence: (f.evidences || []).map(e => ({ database: e.source || '', id: e.id || '', url: '' })),
+          kinase: ''
+        });
+      }
+    }
+
+    // Diseases from UniProt
+    for (const dc of (uniprot.comments || []).filter(c => c.commentType === 'DISEASE')) {
+      if (dc.disease?.diseaseName) {
+        data.diseases.push({
+          name: dc.disease.diseaseName,
+          id: dc.disease.diseaseId || '',
+          description: dc.disease.description || dc.texts?.[0]?.value || '',
+          source: 'UniProt', url: '', evidences: dc.disease.evidences || []
+        });
+      }
+    }
+  }
+
+  // -- GlyGen enrichment --
+  if (glygen) {
+    if (!data.geneName) {
+      const gn = glygen.gene_names?.find(g => g.type === 'recommended') || glygen.gene_names?.[0];
+      data.geneName = gn?.name || searchTerm;
+    }
+    if (!data.proteinName) {
+      const pn = glygen.protein_names?.find(p => p.type === 'recommended') || glygen.protein_names?.[0];
+      data.proteinName = pn?.name || '';
+    }
+    data.length = data.length || glygen.sequence?.length || 0;
+    if (!data.funcText && glygen.refseq?.summary) data.funcText = glygen.refseq.summary;
+
+    // Raw glycosylation (keep full detail for GlyGen tab)
+    data.glycosylation = glygen.glycosylation || [];
+    data.phosphorylation = glygen.phosphorylation || [];
+    data.snv = glygen.snv || [];
+    data.ptmAnnotation = glygen.ptm_annotation || [];
+
+    // Phosphorylation -> unified PTMs
+    for (const p of (glygen.phosphorylation || [])) {
+      data.ptms.push({
+        position: p.start_pos, endPosition: p.end_pos || p.start_pos,
+        residue: p.residue || p.site_lbl || '', type: 'Phosphorylation',
+        description: `Phospho${p.residue || ''} at ${p.site_lbl || 'pos ' + p.start_pos}`,
+        source: 'GlyGen/iPTMnet',
+        evidence: (p.evidence || []).map(e => ({ database: e.database || '', id: e.id || '', url: e.url || '' })),
+        kinase: p.comment ? (p.comment.match(/by\s+(\S+)/)?.[1] || '') : ''
+      });
+    }
+
+    // Glycosylation -> unified PTMs
+    for (const g of (glygen.glycosylation || [])) {
+      const sub = g.subtype || g.type || 'Glycosylation';
+      data.ptms.push({
+        position: g.start_pos, endPosition: g.end_pos || g.start_pos,
+        residue: g.residue || g.site_lbl || '', type: classifyPTM(sub),
+        description: `${sub} at ${g.site_lbl || 'pos ' + g.start_pos}${g.glytoucan_ac ? ' (' + g.glytoucan_ac + ')' : ''}`,
+        source: 'GlyGen',
+        evidence: (g.evidence || []).map(e => ({ database: e.database || '', id: e.id || '', url: e.url || '' })),
+        kinase: '', glytoucanAc: g.glytoucan_ac || ''
+      });
+    }
+
+    // Diseases from GlyGen (dedup)
+    for (const d of (glygen.disease || [])) {
+      const name = d.recommended_name?.name || '';
+      if (name && !data.diseases.find(x => x.name === name)) {
+        data.diseases.push({
+          name, id: d.disease_id || d.recommended_name?.id || '',
+          description: d.recommended_name?.description || '',
+          source: 'GlyGen', url: d.recommended_name?.url || '',
+          evidences: d.evidence || []
+        });
+      }
+    }
+
+    // Pathways from GlyGen
+    for (const p of (glygen.pathway || [])) {
+      data.pathways.push({ name: p.name || '', id: p.id || '', source: p.resource || '', url: p.url || '' });
+    }
+  }
+
+  // Deduplicate unified PTMs by position+type (keep richer)
+  const ptmMap = new Map();
+  for (const p of data.ptms) {
+    const key = `${p.position}_${p.type}`;
+    const ex = ptmMap.get(key);
+    if (!ex || p.evidence.length > ex.evidence.length || p.kinase) {
+      if (ex) {
+        if (ex.kinase && !p.kinase) p.kinase = ex.kinase;
+        if (ex.source !== p.source) p.source = ex.source + ', ' + p.source;
+        const ids = new Set(ex.evidence.map(e => e.id));
+        for (const e of p.evidence) { if (!ids.has(e.id)) ex.evidence.push(e); }
+        p.evidence = ex.evidence;
+      }
+      ptmMap.set(key, p);
+    }
+  }
+  data.ptms = Array.from(ptmMap.values()).sort((a, b) => a.position - b.position);
+
+  return data;
+}
+
+// ========================================================
+// RENDER ALL
+// ========================================================
+function renderAll() {
+  document.getElementById('loadingState').classList.add('hidden');
+  document.getElementById('emptyState').classList.add('hidden');
+  const area = document.getElementById('resultsArea');
+  area.classList.remove('hidden');
+
+  const d = currentData;
+  const neuroDis = d.diseases.filter(x => NEURO_RE.test(x.name));
+  const uniqueSites = new Set(d.ptms.map(p => p.position)).size;
+  const typeCounts = {};
+  d.ptms.forEach(p => { typeCounts[p.type] = (typeCounts[p.type] || 0) + 1; });
+
+  area.innerHTML = `
+    <!-- Protein header -->
+    <div class="card">
+      <div class="card-body">
+        <div class="protein-hdr">
+          <div class="meta">
+            <span class="gene-tag">${d.geneName}</span>
+            <span class="ac-tag">${d.accession} &middot; ${d.organism}</span>
+            <div class="prot-name">${d.proteinName}</div>
+            ${d.funcText ? `<div class="prot-func">${d.funcText.substring(0, 280)}${d.funcText.length > 280 ? '...' : ''}</div>` : ''}
+          </div>
+          <div class="protein-links">
+            <a href="https://www.glygen.org/protein/${d.accession}-1" target="_blank">GlyGen</a>
+            <a href="https://www.uniprot.org/uniprotkb/${d.accession}" target="_blank">UniProt</a>
+          </div>
+          <div class="export-btns">
+            <button class="btn btn-outline btn-sm" onclick="exportCSV()">CSV</button>
+            <button class="btn btn-outline btn-sm" onclick="exportJSON()">JSON</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="stats-row">
+      <div class="stat-card"><div class="stat-val" style="color:var(--accent)">${d.ptms.length}</div><div class="stat-lbl">Total PTMs</div></div>
+      <div class="stat-card"><div class="stat-val" style="color:var(--text)">${uniqueSites}</div><div class="stat-lbl">Unique Sites</div></div>
+      ${Object.entries(typeCounts).sort((a,b) => b[1]-a[1]).slice(0, 4).map(([t, c]) =>
+        `<div class="stat-card"><div class="stat-val" style="color:${getPTMColor(t)}">${c}</div><div class="stat-lbl">${t}</div></div>`
+      ).join('')}
+      <div class="stat-card"><div class="stat-val" style="color:var(--orange)">${neuroDis.length}</div><div class="stat-lbl">Neuro Disease</div></div>
+      <div class="stat-card"><div class="stat-val" style="color:var(--pink)">${d.diseases.length}</div><div class="stat-lbl">All Diseases</div></div>
+      <div class="stat-card"><div class="stat-val" style="color:var(--text2)">${d.length}</div><div class="stat-lbl">Length (aa)</div></div>
+    </div>
+
+    <!-- PTM Map (canvas) -->
+    <div class="card">
+      <div class="card-header"><h3>PTM Site Map</h3><span style="font-size:11px;color:var(--text2)">Hover for details</span></div>
+      <div class="card-body">
+        <div style="position:relative">
+          <canvas id="ptmCanvas" height="180"></canvas>
+          <div class="map-tooltip" id="mapTooltip"></div>
+        </div>
+        <div class="ptm-legend" id="ptmLegend"></div>
+      </div>
+    </div>
+
+    <!-- Tabbed sections -->
+    <div class="card">
+      <div class="tabs" id="mainTabs">
+        <div class="tab active" data-tab="tabPTM" onclick="switchMainTab('tabPTM')">All PTMs (${d.ptms.length})</div>
+        <div class="tab" data-tab="tabGlyc" onclick="switchMainTab('tabGlyc')">Glycosylation (${d.glycosylation.length})</div>
+        <div class="tab" data-tab="tabPhos" onclick="switchMainTab('tabPhos')">Phosphorylation (${d.phosphorylation.length})</div>
+        <div class="tab" data-tab="tabSNV" onclick="switchMainTab('tabSNV')">SNVs (${d.snv.length})</div>
+        <div class="tab" data-tab="tabDis" onclick="switchMainTab('tabDis')">Diseases (${d.diseases.length})</div>
+        <div class="tab" data-tab="tabPath" onclick="switchMainTab('tabPath')">Pathways (${d.pathways.length})</div>
+        <div class="tab" data-tab="tabCross" onclick="switchMainTab('tabCross')">Crosstalk</div>
+        <div class="tab" data-tab="tabAnnot" onclick="switchMainTab('tabAnnot')">Annotations (${d.ptmAnnotation.length})</div>
+      </div>
+      <div class="tab-panel active" id="tabPTM"><div style="padding:12px 16px"><div class="filter-row" id="ptmFilters"></div></div><div class="table-wrap" style="max-height:520px;overflow-y:auto"><table><thead id="ptmThead"></thead><tbody id="ptmTbody"></tbody></table></div></div>
+      <div class="tab-panel" id="tabGlyc"><div class="card-body" id="glycContent"></div></div>
+      <div class="tab-panel" id="tabPhos"><div class="card-body" id="phosContent"></div></div>
+      <div class="tab-panel" id="tabSNV"><div class="card-body" id="snvContent"></div></div>
+      <div class="tab-panel" id="tabDis"><div class="card-body" id="disContent"></div></div>
+      <div class="tab-panel" id="tabPath"><div class="card-body" id="pathContent"></div></div>
+      <div class="tab-panel" id="tabCross"><div class="card-body" id="crossContent"></div></div>
+      <div class="tab-panel" id="tabAnnot"><div class="card-body" id="annotContent"></div></div>
+    </div>
+  `;
+
+  renderPTMMap();
+  renderPTMTable();
+  renderGlycosylation();
+  renderPhosphorylation();
+  renderSNV();
+  renderDiseases();
+  renderPathways();
+  renderCrosstalk();
+  renderAnnotations();
+}
+
+function switchMainTab(id) {
+  document.querySelectorAll('#mainTabs .tab').forEach(t => t.classList.toggle('active', t.dataset.tab === id));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('active', p.id === id));
+}
+
+// ========================================================
+// PTM MAP (Canvas)
+// ========================================================
+function renderPTMMap() {
+  const canvas = document.getElementById('ptmCanvas');
+  const container = canvas.parentElement;
+  const dpr = window.devicePixelRatio || 1;
+  canvas.style.width = '100%';
+  const width = container.clientWidth;
+  const height = 180;
+  canvas.width = width * dpr;
+  canvas.height = height * dpr;
+  canvas.style.height = height + 'px';
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+
+  const d = currentData;
+  const pad = { left: 50, right: 30, top: 30, bottom: 50 };
+  const trackY = 70, trackH = 12;
+  const barW = width - pad.left - pad.right;
+
+  ctx.fillStyle = '#2e3348';
+  ctx.beginPath();
+  if (ctx.roundRect) ctx.roundRect(pad.left, trackY, barW, trackH, 6);
+  else { ctx.rect(pad.left, trackY, barW, trackH); }
+  ctx.fill();
+
+  // Axis ticks
+  ctx.fillStyle = '#9498ad'; ctx.font = '11px system-ui'; ctx.textAlign = 'center';
+  const ticks = [1, Math.round(d.length/4), Math.round(d.length/2), Math.round(3*d.length/4), d.length];
+  for (const t of ticks) {
+    const x = pad.left + (t / d.length) * barW;
+    ctx.fillText(t, x, trackY + trackH + 16);
+    ctx.strokeStyle = '#3a3f55'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(x, trackY); ctx.lineTo(x, trackY + trackH); ctx.stroke();
+  }
+  ctx.textAlign = 'left'; ctx.fillText('aa', pad.left + barW + 4, trackY + trackH + 16);
+
+  // Markers
+  const types = [...new Set(d.ptms.map(p => p.type))];
+  const typeGroups = {};
+  types.forEach(t => { typeGroups[t] = d.ptms.filter(p => p.type === t); });
+
+  const markers = [];
+  let li = 0;
+  for (const type of types) {
+    const ptms = typeGroups[type];
+    const color = getPTMColor(type);
+    const yOff = li % 2 === 0 ? -(20 + Math.floor(li/2)*14) : (trackH + 8 + Math.floor(li/2)*14);
+    for (const ptm of ptms) {
+      const x = pad.left + (ptm.position / d.length) * barW;
+      const my = trackY + trackH/2 + yOff;
+      ctx.strokeStyle = color + '60'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(x, trackY + trackH/2); ctx.lineTo(x, my); ctx.stroke();
+      ctx.beginPath(); ctx.arc(x, my, 4, 0, Math.PI*2); ctx.fillStyle = color; ctx.fill();
+      ctx.strokeStyle = color + '80'; ctx.lineWidth = 1.5; ctx.stroke();
+      markers.push({ x, y: my, r: 6, ptm, color });
+    }
+    li++;
+  }
+
+  ctx.fillStyle = '#e2e4eb'; ctx.font = 'bold 13px system-ui'; ctx.textAlign = 'left';
+  ctx.fillText(`${d.geneName} (${d.length} aa)`, pad.left, 16);
+
+  // Hover
+  const tooltip = document.getElementById('mapTooltip');
+  canvas.onmousemove = (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+    let hit = null;
+    for (const m of markers) {
+      if ((mx-m.x)**2 + (my-m.y)**2 < m.r*m.r*4) { hit = m; break; }
+    }
+    if (hit) {
+      const p = hit.ptm;
+      tooltip.style.display = 'block';
+      tooltip.style.left = (hit.x + 10) + 'px';
+      tooltip.style.top = (hit.y - 10) + 'px';
+      tooltip.innerHTML = `<div class="tt-type" style="color:${hit.color}">${p.type}</div>
+        <div class="tt-detail"><strong>Pos:</strong> ${p.residue || p.position}<br><strong>Desc:</strong> ${p.description}<br>
+        ${p.kinase ? `<strong>Kinase:</strong> ${p.kinase}<br>` : ''}<strong>Source:</strong> ${p.source}<br>
+        <strong>Evidence:</strong> ${p.evidence.length} refs</div>`;
+    } else { tooltip.style.display = 'none'; }
+  };
+  canvas.onmouseleave = () => { tooltip.style.display = 'none'; };
+
+  // Legend
+  document.getElementById('ptmLegend').innerHTML = types.map(t =>
+    `<div class="legend-item"><div class="legend-dot" style="background:${getPTMColor(t)}"></div>${t} (${typeGroups[t].length})</div>`
+  ).join('');
+}
+
+// ========================================================
+// ALL PTMs TABLE (unified)
+// ========================================================
+function renderPTMTable() {
+  const types = [...new Set(currentData.ptms.map(p => p.type))];
+  document.getElementById('ptmFilters').innerHTML =
+    `<span class="chip ${activeFilters.size===0?'active':''}" onclick="clearFilters()">All</span>` +
+    types.map(t => `<span class="chip ${activeFilters.has(t)?'active':''}" style="border-color:${getPTMColor(t)}40" onclick="toggleFilter('${t}')">${t}</span>`).join('') +
+    `<span class="filter-count">${getFilteredPTMs().length} records</span>`;
+
+  let ptms = getFilteredPTMs();
+  ptms = [...ptms].sort((a, b) => {
+    let va, vb;
+    switch(sortCol) {
+      case 'position': va=a.position; vb=b.position; break;
+      case 'type': va=a.type; vb=b.type; break;
+      case 'residue': va=a.residue; vb=b.residue; break;
+      case 'kinase': va=a.kinase; vb=b.kinase; break;
+      case 'source': va=a.source; vb=b.source; break;
+      case 'evidence': va=a.evidence.length; vb=b.evidence.length; break;
+      default: va=a.position; vb=b.position;
+    }
+    if (typeof va === 'string') { va=va.toLowerCase(); vb=vb.toLowerCase(); }
+    return sortDir === 'asc' ? (va < vb ? -1 : va > vb ? 1 : 0) : (va > vb ? -1 : va < vb ? 1 : 0);
+  });
+
+  const cols = [
+    {key:'position',label:'Position'},{key:'residue',label:'Residue'},{key:'type',label:'PTM Type'},
+    {key:'description',label:'Description'},{key:'kinase',label:'Kinase'},{key:'source',label:'Source'},
+    {key:'evidence',label:'Evidence'}
+  ];
+  document.getElementById('ptmThead').innerHTML = '<tr>' + cols.map(c =>
+    `<th onclick="sortTable('${c.key}')">${c.label}${sortCol===c.key ? (sortDir==='asc'?'&#9650;':'&#9660;') : ''}</th>`
+  ).join('') + '</tr>';
+
+  document.getElementById('ptmTbody').innerHTML = ptms.map(p => `<tr>
+    <td>${p.position}</td><td>${p.residue}</td>
+    <td><span class="ptm-badge" style="background:${getPTMColor(p.type)}20;color:${getPTMColor(p.type)}">${p.type}</span></td>
+    <td style="font-size:12px">${p.description}</td><td>${p.kinase||'-'}</td><td style="font-size:11px">${p.source}</td>
+    <td>${renderEvLinks(p.evidence)}</td>
+  </tr>`).join('');
+}
+
+function getFilteredPTMs() {
+  return activeFilters.size > 0 ? currentData.ptms.filter(p => activeFilters.has(p.type)) : currentData.ptms;
+}
+function toggleFilter(type) { activeFilters.has(type) ? activeFilters.delete(type) : activeFilters.add(type); renderPTMTable(); }
+function clearFilters() { activeFilters.clear(); renderPTMTable(); }
+function sortTable(col) { if (sortCol===col) sortDir = sortDir==='asc'?'desc':'asc'; else { sortCol=col; sortDir='asc'; } renderPTMTable(); }
+
+// ========================================================
+// GLYCOSYLATION TAB (GlyGen detail)
+// ========================================================
+function renderGlycosylation() {
+  const el = document.getElementById('glycContent');
+  const data = currentData.glycosylation;
+  if (!data.length) { el.innerHTML = '<p style="color:var(--text2)">No glycosylation data in GlyGen.</p>'; return; }
+  const types = [...new Set(data.map(d => d.type).filter(Boolean))];
+  const cats = [...new Set(data.map(d => d.site_category).filter(Boolean))];
+  el.innerHTML = `
+    <div class="filter-row">
+      <select id="glycTypeF" onchange="filterGlyc()"><option value="">All types</option>${types.map(t=>`<option value="${t}">${t}</option>`).join('')}</select>
+      <select id="glycCatF" onchange="filterGlyc()"><option value="">All categories</option>${cats.map(c=>`<option value="${c}">${c.replace(/_/g,' ')}</option>`).join('')}</select>
+      <span class="filter-count" id="glycCount">${data.length} records</span>
+    </div>
+    <div class="table-wrap" style="max-height:480px;overflow-y:auto"><table>
+      <thead><tr><th onclick="sortGlyc('start_pos')">Position</th><th onclick="sortGlyc('residue')">Residue</th><th onclick="sortGlyc('type')">Type</th><th onclick="sortGlyc('subtype')">Subtype</th><th onclick="sortGlyc('site_category')">Category</th><th>GlyTouCan</th><th>Evidence</th></tr></thead>
+      <tbody id="glycBody"></tbody>
+    </table></div>`;
+  filterGlyc();
+}
+function filterGlyc() {
+  const tf = document.getElementById('glycTypeF').value;
+  const cf = document.getElementById('glycCatF').value;
+  let d = currentData.glycosylation;
+  if (tf) d = d.filter(g => g.type === tf);
+  if (cf) d = d.filter(g => g.site_category === cf);
+  d = [...d].sort((a,b) => { let va=a[glycSort.col],vb=b[glycSort.col]; if (typeof va==='number') return glycSort.asc?va-vb:vb-va; return glycSort.asc?String(va||'').localeCompare(String(vb||'')):String(vb||'').localeCompare(String(va||'')); });
+  document.getElementById('glycCount').textContent = d.length + ' records';
+  document.getElementById('glycBody').innerHTML = d.map(g => `<tr>
+    <td><strong>${g.start_pos||'?'}</strong>${g.end_pos&&g.end_pos!==g.start_pos?'-'+g.end_pos:''}</td>
+    <td>${g.residue||g.start_aa||g.site_lbl||''}</td>
+    <td><span class="ptm-badge" style="background:${g.type==='N-linked'?'rgba(74,222,128,.15);color:#4ade80':g.type==='O-linked'?'rgba(34,211,238,.15);color:#22d3ee':'rgba(245,158,11,.15);color:#f59e0b'}">${g.type||''}</span></td>
+    <td style="font-size:12px">${g.subtype||''}</td>
+    <td style="font-size:11px">${(g.site_category||'').replace(/_/g,' ')}</td>
+    <td>${g.glytoucan_ac?`<a href="https://www.glygen.org/glycan/${g.glytoucan_ac}" target="_blank">${g.glytoucan_ac}</a>`:'-'}</td>
+    <td>${renderEvPills(g.evidence)}</td>
+  </tr>`).join('');
+}
+function sortGlyc(col) { if (glycSort.col===col) glycSort.asc=!glycSort.asc; else { glycSort.col=col; glycSort.asc=true; } filterGlyc(); }
+
+// ========================================================
+// PHOSPHORYLATION TAB
+// ========================================================
+function renderPhosphorylation() {
+  const el = document.getElementById('phosContent');
+  const data = currentData.phosphorylation;
+  if (!data.length) { el.innerHTML = '<p style="color:var(--text2)">No phosphorylation data in GlyGen.</p>'; return; }
+  el.innerHTML = `<div class="filter-row"><span class="filter-count">${data.length} sites</span></div>
+    <div class="table-wrap" style="max-height:480px;overflow-y:auto"><table>
+      <thead><tr><th>Position</th><th>Residue</th><th>Annotation</th><th>Evidence</th></tr></thead>
+      <tbody>${[...data].sort((a,b)=>(a.start_pos||0)-(b.start_pos||0)).map(p=>`<tr>
+        <td><strong>${p.start_pos||'?'}</strong></td>
+        <td><span class="ptm-badge" style="background:rgba(255,107,107,.15);color:#ff6b6b">${p.residue||''}</span></td>
+        <td style="font-size:12px">${p.comment||''}</td>
+        <td>${renderEvPills(p.evidence)}</td>
+      </tr>`).join('')}</tbody>
+    </table></div>`;
+}
+
+// ========================================================
+// SNV TAB
+// ========================================================
+function renderSNV() {
+  const el = document.getElementById('snvContent');
+  const data = currentData.snv;
+  if (!data.length) { el.innerHTML = '<p style="color:var(--text2)">No SNV/mutation data in GlyGen.</p>'; return; }
+  el.innerHTML = `<div class="filter-row">
+      <select id="snvF" onchange="filterSNV()"><option value="">All SNVs</option><option value="disease">Disease-associated</option><option value="other">Non-disease</option></select>
+      <span class="filter-count" id="snvCount">${data.length} variants</span>
+    </div>
+    <div class="table-wrap" style="max-height:480px;overflow-y:auto"><table>
+      <thead><tr><th>Position</th><th>Change</th><th>Comment</th><th>Disease</th><th>Evidence</th></tr></thead>
+      <tbody id="snvBody"></tbody>
+    </table></div>`;
+  filterSNV();
+}
+function filterSNV() {
+  const f = document.getElementById('snvF').value;
+  let d = currentData.snv;
+  if (f==='disease') d = d.filter(s => s.disease && s.disease.length > 0);
+  else if (f==='other') d = d.filter(s => !s.disease || s.disease.length === 0);
+  document.getElementById('snvCount').textContent = d.length + ' variants';
+  document.getElementById('snvBody').innerHTML = [...d].sort((a,b)=>(a.start_pos||0)-(b.start_pos||0)).map(s => {
+    const hd = s.disease && s.disease.length > 0;
+    return `<tr><td><strong>${s.site_lbl||s.start_pos||'?'}</strong></td>
+      <td>${s.sequence_org||''} &rarr; ${s.sequence_mut||''}</td>
+      <td style="font-size:12px">${s.comment||''}</td>
+      <td>${hd?s.disease.map(x=>`<span class="disease-chip">${x.recommended_name?.name||x.disease_id||''}</span>`).join(' '):'<span style="color:var(--text2)">-</span>'}</td>
+      <td>${renderEvPills(s.evidence)}</td></tr>`;
+  }).join('');
+}
+
+// ========================================================
+// DISEASES TAB
+// ========================================================
+function renderDiseases() {
+  const el = document.getElementById('disContent');
+  const data = currentData.diseases;
+  if (!data.length) { el.innerHTML = '<p style="color:var(--text2)">No disease associations found.</p>'; return; }
+  el.innerHTML = `<div class="filter-row">
+      <select id="disF" onchange="filterDis()"><option value="">All (${data.length})</option><option value="neuro">Neurodegenerative only</option></select>
+      <span class="filter-count" id="disCount">${data.length}</span>
+    </div><div id="disList"></div>`;
+  filterDis();
+}
+function filterDis() {
+  const f = document.getElementById('disF').value;
+  let d = currentData.diseases;
+  if (f==='neuro') d = d.filter(x => NEURO_RE.test(x.name));
+  document.getElementById('disCount').textContent = d.length;
+  document.getElementById('disList').innerHTML = d.map(dis => {
+    const isN = NEURO_RE.test(dis.name);
+    return `<div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:10px 14px;margin-bottom:6px">
+      <div style="font-weight:500;${isN?'color:var(--orange)':''}">${dis.name}</div>
+      <div style="font-size:12px;color:var(--text2)">${dis.id?`<a href="${dis.url||'#'}" target="_blank">${dis.id}</a>`:''} <span style="margin-left:6px">${dis.source}</span></div>
+      ${dis.description?`<div style="font-size:12px;color:var(--text2);margin-top:4px">${dis.description}</div>`:''}
+    </div>`;
+  }).join('');
+}
+
+// ========================================================
+// PATHWAYS TAB
+// ========================================================
+function renderPathways() {
+  const el = document.getElementById('pathContent');
+  const data = currentData.pathways;
+  if (!data.length) { el.innerHTML = '<p style="color:var(--text2)">No pathway data. Pathway data comes from GlyGen.</p>'; return; }
+  el.innerHTML = data.map(p => `<div class="pathway-item">
+    <span class="pathway-src">${p.source}</span>
+    ${p.url?`<a href="${p.url}" target="_blank">${p.name}</a>`:p.name}
+    ${p.id?`<span style="color:var(--text2);font-size:11px">${p.id}</span>`:''}
+  </div>`).join('');
+}
+
+// ========================================================
+// CROSSTALK TAB
+// ========================================================
+function renderCrosstalk() {
+  const el = document.getElementById('crossContent');
+  const posMap = {};
+  currentData.ptms.forEach(p => { if (!posMap[p.position]) posMap[p.position]=[]; posMap[p.position].push(p); });
+  const crosstalks = Object.entries(posMap).filter(([_,ptms]) => new Set(ptms.map(p=>p.type)).size > 1).sort((a,b) => +a[0] - +b[0]);
+
+  if (!crosstalks.length) {
+    el.innerHTML = '<p style="color:var(--text2)">No multi-type PTM sites detected. Sites with competing modifications (e.g. O-GlcNAc vs phosphorylation) would appear here.</p>';
+    return;
+  }
+  el.innerHTML = `<p style="font-size:12px;color:var(--text2);margin-bottom:12px">${crosstalks.length} sites with multiple PTM types -- potential modification crosstalk or competition.</p>
+    <div class="crosstalk-grid">${crosstalks.map(([pos,ptms]) => `<div class="crosstalk-card">
+      <div class="crosstalk-pos">${ptms[0].residue||'Position '+pos} (pos ${pos})</div>
+      <div class="crosstalk-mods">${ptms.map(p=>`<span class="ptm-badge" style="background:${getPTMColor(p.type)}20;color:${getPTMColor(p.type)}">${p.type}</span>`).join('')}</div>
+      <div style="margin-top:6px;font-size:11px;color:var(--text2)">${ptms.map(p=>`${p.type}: ${p.description}`).join('<br>')}</div>
+    </div>`).join('')}</div>`;
+}
+
+// ========================================================
+// ANNOTATIONS TAB
+// ========================================================
+function renderAnnotations() {
+  const el = document.getElementById('annotContent');
+  const data = currentData.ptmAnnotation;
+  if (!data.length) { el.innerHTML = '<p style="color:var(--text2)">No PTM annotations available.</p>'; return; }
+  el.innerHTML = data.map(a => `<div class="ptm-annot"><p>${a.annotation}</p>
+    <div style="margin-top:6px">${renderEvPills(a.evidence)}</div></div>`).join('');
+}
+
+// ========================================================
+// EVIDENCE RENDERERS
+// ========================================================
+function renderEvPills(ev) {
+  if (!ev || !ev.length) return '<span style="color:var(--text2)">-</span>';
+  return ev.slice(0, 4).map(e => {
+    const lbl = e.database==='PubMed' ? `PMID:${e.id}` : `${e.database}:${e.id}`;
+    const url = e.url || (e.database==='PubMed' ? `https://pubmed.ncbi.nlm.nih.gov/${e.id}` : '');
+    return `<span class="ev-pill">${url?`<a href="${url}" target="_blank">${lbl}</a>`:lbl}</span>`;
+  }).join('') + (ev.length > 4 ? `<span class="ev-pill">+${ev.length-4}</span>` : '');
+}
+function renderEvLinks(ev) {
+  if (!ev || !ev.length) return '-';
+  return ev.slice(0, 3).map(e => {
+    const url = e.url || (e.database==='PubMed' ? `https://pubmed.ncbi.nlm.nih.gov/${e.id}` : '');
+    const lbl = e.database==='PubMed' ? `PMID:${e.id}` : `${e.database}:${e.id}`;
+    return url ? `<a href="${url}" target="_blank">${lbl}</a>` : lbl;
+  }).join(', ') + (ev.length > 3 ? ` +${ev.length-3}` : '');
+}
+
+// ========================================================
+// EXPORT
+// ========================================================
+function exportCSV() {
+  if (!currentData) return;
+  const ptms = getFilteredPTMs();
+  const hdr = ['Gene','UniProt','Position','Residue','PTM_Type','Description','Kinase','Source','Evidence_Count','PubMed_IDs'];
+  const rows = ptms.map(p => [currentData.geneName, currentData.accession, p.position, p.residue, p.type,
+    `"${p.description.replace(/"/g,'""')}"`, p.kinase||'', p.source, p.evidence.length,
+    p.evidence.filter(e=>e.database==='PubMed').map(e=>e.id).join(';')]);
+  dl([hdr.join(','), ...rows.map(r=>r.join(','))].join('\n'), `${currentData.geneName}_PTMs.csv`, 'text/csv');
+}
+function exportJSON() {
+  if (!currentData) return;
+  dl(JSON.stringify(currentData, null, 2), `${currentData.geneName}_PTMs.json`, 'application/json');
+}
+function dl(content, name, type) {
+  const b = new Blob([content], { type });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(b); a.download = name; a.click(); URL.revokeObjectURL(a.href);
+}
+
+// ========================================================
+// EVENTS
+// ========================================================
+document.getElementById('searchInput').addEventListener('keydown', e => { if (e.key === 'Enter') doSearch(); });
+window.addEventListener('resize', () => { if (currentData) renderPTMMap(); });
+</script>
+</body>
+</html>
