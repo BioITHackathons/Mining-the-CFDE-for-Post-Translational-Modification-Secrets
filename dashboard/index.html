@@ -1097,17 +1097,36 @@ function renderAll() {
       <div class="stat-card"><div class="stat-val" style="color:var(--text2)">${d.length}</div><div class="stat-lbl">Length (aa)</div></div>
     </div>
 
-    <!-- PTM Map (canvas) -->
+    <!-- Disease context (always visible in protein view) -->
+    ${d.diseases.length > 0 ? `<div class="card">
+      <div class="card-header"><h3>Disease Associations</h3><span style="font-size:11px;color:var(--text2)">${d.diseases.length} diseases linked to this protein</span></div>
+      <div class="card-body" style="display:flex;flex-wrap:wrap;gap:6px">
+        ${d.diseases.sort((a,b) => {
+          const an = NEURO_RE.test(a.name) ? 0 : 1;
+          const bn = NEURO_RE.test(b.name) ? 0 : 1;
+          return an - bn || a.name.localeCompare(b.name);
+        }).slice(0, 40).map(dis => {
+          const isN = NEURO_RE.test(dis.name);
+          return `<span class="disease-chip" style="${isN ? 'background:rgba(245,158,11,.12);border-color:rgba(245,158,11,.3);color:var(--orange);font-weight:600' : ''}" title="${dis.description || ''}">${dis.name}${dis.source ? ' <span style=&quot;opacity:.5&quot;>(' + dis.source + ')</span>' : ''}</span>`;
+        }).join('')}
+        ${d.diseases.length > 40 ? `<span style="font-size:11px;color:var(--text2)">+${d.diseases.length - 40} more</span>` : ''}
+      </div>
+    </div>` : ''}
+
+    <!-- PTM + Disease Map (canvas) -->
     <div class="card">
-      <div class="card-header"><h3>PTM Site Map</h3><span style="font-size:11px;color:var(--text2)">Hover for details</span></div>
+      <div class="card-header"><h3>Protein Viewer &mdash; PTMs &amp; Disease Variants</h3><span style="font-size:11px;color:var(--text2)">Hover for details &middot; Red arcs = disease SNV near PTM</span></div>
       <div class="card-body">
         <div style="position:relative">
-          <canvas id="ptmCanvas" height="180"></canvas>
+          <canvas id="ptmCanvas" height="260"></canvas>
           <div class="map-tooltip" id="mapTooltip"></div>
         </div>
         <div class="ptm-legend" id="ptmLegend"></div>
       </div>
     </div>
+
+    <!-- Disease-PTM impact (auto-computed) -->
+    <div id="impactPanel"></div>
 
     <!-- Tabbed sections -->
     <div class="card">
@@ -1133,6 +1152,7 @@ function renderAll() {
   `;
 
   renderPTMMap();
+  renderImpactPanel();
   renderPTMTable();
   renderGlycosylation();
   renderPhosphorylation();
@@ -1149,7 +1169,7 @@ function switchMainTab(id) {
 }
 
 // ========================================================
-// PTM MAP (Canvas)
+// PTM MAP (Canvas) -- with disease variant track + proximity arcs
 // ========================================================
 function renderPTMMap() {
   const canvas = document.getElementById('ptmCanvas');
@@ -1157,7 +1177,7 @@ function renderPTMMap() {
   const dpr = window.devicePixelRatio || 1;
   canvas.style.width = '100%';
   const width = container.clientWidth;
-  const height = 180;
+  const height = 260;
   canvas.width = width * dpr;
   canvas.height = height * dpr;
   canvas.style.height = height + 'px';
@@ -1165,52 +1185,119 @@ function renderPTMMap() {
   ctx.scale(dpr, dpr);
 
   const d = currentData;
-  const pad = { left: 50, right: 30, top: 30, bottom: 50 };
-  const trackY = 70, trackH = 12;
+  if (!d || !d.length) return;
+  const pad = { left: 50, right: 30, top: 30, bottom: 40 };
+  const trackY = 80, trackH = 12;
   const barW = width - pad.left - pad.right;
+  const scale = pos => pad.left + (pos / d.length) * barW;
 
+  // Background
+  ctx.clearRect(0, 0, width, height);
+
+  // Protein backbone track
   ctx.fillStyle = '#2e3348';
   ctx.beginPath();
   if (ctx.roundRect) ctx.roundRect(pad.left, trackY, barW, trackH, 6);
-  else { ctx.rect(pad.left, trackY, barW, trackH); }
+  else ctx.rect(pad.left, trackY, barW, trackH);
   ctx.fill();
 
-  // Axis ticks
-  ctx.fillStyle = '#9498ad'; ctx.font = '11px system-ui'; ctx.textAlign = 'center';
-  const ticks = [1, Math.round(d.length/4), Math.round(d.length/2), Math.round(3*d.length/4), d.length];
-  for (const t of ticks) {
-    const x = pad.left + (t / d.length) * barW;
-    ctx.fillText(t, x, trackY + trackH + 16);
-    ctx.strokeStyle = '#3a3f55'; ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.moveTo(x, trackY); ctx.lineTo(x, trackY + trackH); ctx.stroke();
-  }
-  ctx.textAlign = 'left'; ctx.fillText('aa', pad.left + barW + 4, trackY + trackH + 16);
+  // Track labels
+  ctx.fillStyle = '#9498ad'; ctx.font = '10px system-ui'; ctx.textAlign = 'right';
+  ctx.fillText('PTMs', pad.left - 6, trackY - 18);
+  ctx.fillText('SNVs', pad.left - 6, trackY + trackH + 28);
 
-  // Markers
+  // Axis ticks
+  ctx.fillStyle = '#9498ad'; ctx.font = '10px system-ui'; ctx.textAlign = 'center';
+  const numTicks = d.length <= 500 ? 5 : d.length <= 2000 ? 5 : 5;
+  for (let i = 0; i <= numTicks; i++) {
+    const t = Math.round((i / numTicks) * d.length);
+    const x = scale(t);
+    ctx.fillText(t || 1, x, height - pad.bottom + 14);
+    ctx.strokeStyle = '#3a3f55'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(x, trackY - 2); ctx.lineTo(x, trackY + trackH + 2); ctx.stroke();
+  }
+
+  // ---- PTM markers (above track) ----
   const types = [...new Set(d.ptms.map(p => p.type))];
   const typeGroups = {};
   types.forEach(t => { typeGroups[t] = d.ptms.filter(p => p.type === t); });
+  const ptmPositions = new Set(d.ptms.map(p => p.position));
 
   const markers = [];
   let li = 0;
   for (const type of types) {
     const ptms = typeGroups[type];
     const color = getPTMColor(type);
-    const yOff = li % 2 === 0 ? -(20 + Math.floor(li/2)*14) : (trackH + 8 + Math.floor(li/2)*14);
+    const yOff = -(16 + li * 11);
     for (const ptm of ptms) {
-      const x = pad.left + (ptm.position / d.length) * barW;
-      const my = trackY + trackH/2 + yOff;
-      ctx.strokeStyle = color + '60'; ctx.lineWidth = 1;
-      ctx.beginPath(); ctx.moveTo(x, trackY + trackH/2); ctx.lineTo(x, my); ctx.stroke();
-      ctx.beginPath(); ctx.arc(x, my, 4, 0, Math.PI*2); ctx.fillStyle = color; ctx.fill();
-      ctx.strokeStyle = color + '80'; ctx.lineWidth = 1.5; ctx.stroke();
-      markers.push({ x, y: my, r: 6, ptm, color });
+      const x = scale(ptm.position);
+      const my = trackY + yOff;
+      ctx.strokeStyle = color + '40'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(x, trackY); ctx.lineTo(x, my); ctx.stroke();
+      ctx.beginPath(); ctx.arc(x, my, 3.5, 0, Math.PI * 2); ctx.fillStyle = color; ctx.fill();
+      markers.push({ x, y: my, r: 5, ptm, color, kind: 'ptm' });
     }
     li++;
   }
 
+  // ---- SNV markers (below track) ----
+  const snvs = d.snv || [];
+  const disSNVs = snvs.filter(s => s.disease && s.disease.length > 0);
+  const nonDisSNVs = snvs.filter(s => !s.disease || s.disease.length === 0);
+  const snvBaseY = trackY + trackH + 16;
+
+  // Non-disease SNVs (small, muted)
+  for (const s of nonDisSNVs) {
+    if (!s.start_pos) continue;
+    const x = scale(s.start_pos);
+    ctx.beginPath(); ctx.arc(x, snvBaseY, 2.5, 0, Math.PI * 2);
+    ctx.fillStyle = '#555'; ctx.fill();
+    markers.push({ x, y: snvBaseY, r: 4, ptm: { type: 'SNV (non-disease)', position: s.start_pos, residue: s.site_lbl || '', description: `${s.sequence_org||''} > ${s.sequence_mut||''} ${s.comment||''}`, source: 'GlyGen/BioMuta', evidence: s.evidence || [], kinase: '' }, color: '#555', kind: 'snv' });
+  }
+
+  // Disease-associated SNVs (prominent, with proximity arcs to nearby PTMs)
+  for (const s of disSNVs) {
+    if (!s.start_pos) continue;
+    const x = scale(s.start_pos);
+    const disNames = s.disease.map(dd => dd.recommended_name?.name || dd.disease_id || '').join(', ');
+    const isNeuro = NEURO_RE.test(disNames);
+
+    // Draw proximity arc to nearby PTM sites
+    for (const ptmPos of ptmPositions) {
+      if (Math.abs(s.start_pos - ptmPos) <= 5) {
+        const ptmX = scale(ptmPos);
+        const arcY = snvBaseY + 18 + Math.abs(s.start_pos - ptmPos) * 3;
+        ctx.strokeStyle = isNeuro ? 'rgba(245,158,11,.35)' : 'rgba(239,68,68,.25)';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(x, snvBaseY + 4);
+        ctx.quadraticCurveTo((x + ptmX) / 2, arcY, ptmX, trackY + trackH);
+        ctx.stroke();
+        // small label
+        ctx.fillStyle = isNeuro ? 'rgba(245,158,11,.6)' : 'rgba(239,68,68,.4)';
+        ctx.font = '8px system-ui'; ctx.textAlign = 'center';
+        ctx.fillText(Math.abs(s.start_pos - ptmPos) + 'aa', (x + ptmX) / 2, arcY + 2);
+      }
+    }
+
+    // Marker
+    const markerY = snvBaseY;
+    ctx.beginPath();
+    ctx.moveTo(x, markerY - 5); ctx.lineTo(x + 5, markerY + 3); ctx.lineTo(x - 5, markerY + 3); ctx.closePath();
+    ctx.fillStyle = isNeuro ? '#f59e0b' : '#ef4444'; ctx.fill();
+    ctx.strokeStyle = isNeuro ? '#f59e0b80' : '#ef444480'; ctx.lineWidth = 1; ctx.stroke();
+
+    markers.push({ x, y: markerY, r: 6, ptm: { type: isNeuro ? 'Disease SNV (neuro)' : 'Disease SNV', position: s.start_pos, residue: s.site_lbl || '', description: `${s.sequence_org||''} > ${s.sequence_mut||''} | ${disNames}`, source: 'GlyGen/BioMuta', evidence: s.evidence || [], kinase: '' }, color: isNeuro ? '#f59e0b' : '#ef4444', kind: 'disSNV' });
+  }
+
+  // Title
   ctx.fillStyle = '#e2e4eb'; ctx.font = 'bold 13px system-ui'; ctx.textAlign = 'left';
   ctx.fillText(`${d.geneName} (${d.length} aa)`, pad.left, 16);
+
+  // Source badges
+  ctx.font = '10px system-ui';
+  if (d.sources?.glygen) { ctx.fillStyle = '#4ecdc4'; ctx.fillText('GlyGen', pad.left + ctx.measureText(d.geneName + ` (${d.length} aa)  `).width + 10, 16); }
+  if (d.sources?.uniprot) { ctx.fillStyle = '#6c8aff'; ctx.fillText('UniProt', pad.left + ctx.measureText(d.geneName + ` (${d.length} aa)  GlyGen  `).width + 20, 16); }
 
   // Hover
   const tooltip = document.getElementById('mapTooltip');
@@ -1219,12 +1306,12 @@ function renderPTMMap() {
     const mx = e.clientX - rect.left, my = e.clientY - rect.top;
     let hit = null;
     for (const m of markers) {
-      if ((mx-m.x)**2 + (my-m.y)**2 < m.r*m.r*4) { hit = m; break; }
+      if ((mx - m.x) ** 2 + (my - m.y) ** 2 < m.r * m.r * 4) { hit = m; break; }
     }
     if (hit) {
       const p = hit.ptm;
       tooltip.style.display = 'block';
-      tooltip.style.left = (hit.x + 10) + 'px';
+      tooltip.style.left = Math.min(hit.x + 12, width - 280) + 'px';
       tooltip.style.top = (hit.y - 10) + 'px';
       tooltip.innerHTML = `<div class="tt-type" style="color:${hit.color}">${p.type}</div>
         <div class="tt-detail"><strong>Pos:</strong> ${p.residue || p.position}<br><strong>Desc:</strong> ${p.description}<br>
@@ -1235,9 +1322,90 @@ function renderPTMMap() {
   canvas.onmouseleave = () => { tooltip.style.display = 'none'; };
 
   // Legend
-  document.getElementById('ptmLegend').innerHTML = types.map(t =>
+  const legendParts = types.map(t =>
     `<div class="legend-item"><div class="legend-dot" style="background:${getPTMColor(t)}"></div>${t} (${typeGroups[t].length})</div>`
-  ).join('');
+  );
+  if (disSNVs.length) legendParts.push(`<div class="legend-item"><div class="legend-dot" style="background:var(--red);clip-path:polygon(50% 0%,100% 100%,0% 100%)"></div>Disease SNV (${disSNVs.length})</div>`);
+  if (nonDisSNVs.length) legendParts.push(`<div class="legend-item"><div class="legend-dot" style="background:#555"></div>Other SNV (${nonDisSNVs.length})</div>`);
+  const neuroSNVs = disSNVs.filter(s => NEURO_RE.test(s.disease?.map(dd => dd.recommended_name?.name||'').join(' ')));
+  if (neuroSNVs.length) legendParts.push(`<div class="legend-item"><div class="legend-dot" style="background:var(--orange);clip-path:polygon(50% 0%,100% 100%,0% 100%)"></div>Neuro SNV (${neuroSNVs.length})</div>`);
+  legendParts.push(`<div class="legend-item" style="border-left:1px solid var(--border);padding-left:10px"><span style="color:var(--red);opacity:.5">&#8978;</span> Arc = disease SNV within 5aa of PTM site</div>`);
+  document.getElementById('ptmLegend').innerHTML = legendParts.join('');
+}
+
+// ========================================================
+// DISEASE-PTM IMPACT PANEL (auto-computed in protein view)
+// ========================================================
+function renderImpactPanel() {
+  const el = document.getElementById('impactPanel');
+  if (!el) return;
+  const d = currentData;
+  const snvs = d.snv || [];
+  const disSNVs = snvs.filter(s => s.disease && s.disease.length > 0 && s.start_pos);
+  const ptmPositions = new Set([
+    ...(d.glycosylation || []).map(g => g.start_pos),
+    ...(d.phosphorylation || []).map(p => p.start_pos)
+  ].filter(Boolean));
+
+  // Find disease SNVs near PTM sites (within 5 residues)
+  const impactSNVs = [];
+  for (const s of disSNVs) {
+    let nearestPTM = null;
+    let nearestDist = Infinity;
+    for (const pos of ptmPositions) {
+      const dist = Math.abs(s.start_pos - pos);
+      if (dist <= 5 && dist < nearestDist) {
+        nearestDist = dist;
+        nearestPTM = pos;
+      }
+    }
+    if (nearestPTM !== null) {
+      // Find what PTM is at that position
+      const glycAtPos = (d.glycosylation || []).find(g => g.start_pos === nearestPTM);
+      const phosAtPos = (d.phosphorylation || []).find(p => p.start_pos === nearestPTM);
+      const ptmType = glycAtPos ? `${glycAtPos.type || 'Glycosylation'} (${glycAtPos.subtype || ''})` : phosAtPos ? `Phospho${phosAtPos.residue || ''}` : 'PTM';
+      const ptmLabel = glycAtPos?.site_lbl || phosAtPos?.site_lbl || `pos ${nearestPTM}`;
+      impactSNVs.push({
+        snv: s,
+        ptmPos: nearestPTM,
+        ptmType,
+        ptmLabel,
+        distance: nearestDist,
+        diseases: s.disease.map(dd => dd.recommended_name?.name || dd.disease_id || '').filter(Boolean)
+      });
+    }
+  }
+
+  if (impactSNVs.length === 0 && d.diseases.length === 0) {
+    el.innerHTML = '';
+    return;
+  }
+
+  let html = '<div class="card"><div class="card-header"><h3>Disease-PTM Impact Analysis</h3>';
+  html += `<span style="font-size:11px;color:var(--text2)">${impactSNVs.length} disease variant${impactSNVs.length !== 1 ? 's' : ''} near PTM sites</span></div>`;
+  html += '<div class="card-body">';
+
+  if (impactSNVs.length > 0) {
+    html += `<p style="font-size:12px;color:var(--text2);margin-bottom:12px">Disease-associated mutations within 5 residues of a glycosylation or phosphorylation site. These may disrupt post-translational modification and contribute to disease.</p>`;
+    html += '<div class="table-wrap"><table><thead><tr><th>SNV Position</th><th>Mutation</th><th>Distance</th><th>Nearby PTM</th><th>PTM Type</th><th>Diseases</th></tr></thead><tbody>';
+    for (const imp of impactSNVs.sort((a, b) => a.distance - b.distance)) {
+      const s = imp.snv;
+      html += `<tr>
+        <td><strong>${s.site_lbl || s.start_pos}</strong></td>
+        <td>${s.sequence_org || ''} &rarr; ${s.sequence_mut || ''}</td>
+        <td style="text-align:center;font-weight:700;color:${imp.distance === 0 ? 'var(--red)' : imp.distance <= 2 ? 'var(--orange)' : 'var(--text2)'}">${imp.distance === 0 ? 'Same site' : imp.distance + ' aa'}</td>
+        <td>${imp.ptmLabel}</td>
+        <td><span class="ptm-badge" style="background:${getPTMColor(imp.ptmType)}20;color:${getPTMColor(imp.ptmType)}">${imp.ptmType}</span></td>
+        <td>${imp.diseases.map(dn => `<span class="disease-chip" style="${NEURO_RE.test(dn) ? 'background:rgba(245,158,11,.12);border-color:rgba(245,158,11,.3);color:var(--orange)' : ''}">${dn}</span>`).join(' ')}</td>
+      </tr>`;
+    }
+    html += '</tbody></table></div>';
+  } else if (d.diseases.length > 0) {
+    html += `<p style="font-size:12px;color:var(--text2)">This protein is associated with ${d.diseases.length} disease(s) but no disease-associated SNVs were found within 5 residues of known PTM sites. The disease associations are shown in the panel above and the Diseases tab below.</p>`;
+  }
+
+  html += '</div></div>';
+  el.innerHTML = html;
 }
 
 // ========================================================
