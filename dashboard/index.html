@@ -385,6 +385,7 @@ tr:hover td { background: rgba(108,138,255,.04); }
   <h1><span class="hl">CFDE</span> PTM Explorer</h1>
   <span class="subtitle">Post-Translational Modifications in Neurodegenerative Disease Proteins</span>
   <div class="hdr-badges">
+    <a href="network.html" class="hdr-badge" style="cursor:pointer;text-decoration:none;background:rgba(108,138,255,.12);border-color:rgba(108,138,255,.3);color:var(--accent)">Network View</a>
     <span class="hdr-badge" style="cursor:pointer" onclick="openDataSources()">Data Sources</span>
     <span class="hdr-badge">GlyGen</span>
     <span class="hdr-badge">UniProt</span>
@@ -1197,9 +1198,12 @@ function renderFilterBanner() {
   const el = document.getElementById('diseaseFilterBanner');
   if (!el) return;
   if (!diseaseFilter) { el.innerHTML = ''; return; }
-  el.innerHTML = `<div style="background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.3);border-radius:var(--radius);padding:8px 14px;margin-bottom:12px;display:flex;align-items:center;gap:10px">
+  const protLinked = currentData && currentData.diseases.some(dis => matchesDiseaseFilter(dis.name));
+  el.innerHTML = `<div style="background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.3);border-radius:var(--radius);padding:8px 14px;margin-bottom:12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
     <span style="font-size:13px;color:var(--orange);font-weight:600">Filtered by: ${diseaseFilter}</span>
-    <span style="font-size:12px;color:var(--text2)">SNVs, annotations, and map highlights filtered to this disease context</span>
+    <span style="font-size:12px;color:var(--text2)">${protLinked
+      ? 'Protein is linked to this disease -- all PTMs shown as disease context, annotations and map highlights active'
+      : 'Protein not directly linked to this disease -- showing only matching SNVs'}</span>
     <button class="btn btn-outline btn-sm" style="margin-left:auto;border-color:var(--orange);color:var(--orange)" onclick="clearDiseaseFilter()">Clear Filter</button>
   </div>`;
 }
@@ -1278,22 +1282,29 @@ function renderPTMMap() {
     ctx.beginPath(); ctx.moveTo(x, trackY - 2); ctx.lineTo(x, trackY + trackH + 2); ctx.stroke();
   }
 
-  // ---- Pre-compute disease-relevant PTM positions for filter highlighting ----
+  // ---- Pre-compute disease relevance for filter highlighting ----
   const snvs = d.snv || [];
   const disSNVs = snvs.filter(s => s.disease && s.disease.length > 0);
-  // PTM positions near a disease SNV that matches the active filter
-  const diseaseRelevantPTMPositions = new Set();
+
+  // Two-level disease relevance:
+  // Level 1: protein itself is associated with the filtered disease → ALL PTMs are relevant
+  // Level 2: specific PTMs near ANY disease SNV get extra emphasis (hotspot marker)
+  const proteinMatchesFilter = diseaseFilter && d.diseases.some(dis => matchesDiseaseFilter(dis.name));
+  const hotspotPTMPositions = new Set(); // PTMs near any disease SNV (regardless of disease name)
   if (diseaseFilter) {
-    const matchingSNVs = disSNVs.filter(s => s.start_pos && s.disease.some(dd => matchesDiseaseFilter(dd.recommended_name?.name || '')));
-    for (const s of matchingSNVs) {
-      // Mark all PTM positions within 5aa as disease-relevant
+    for (const s of disSNVs) {
+      if (!s.start_pos) continue;
       for (const ptm of d.ptms) {
         if (Math.abs(ptm.position - s.start_pos) <= 5) {
-          diseaseRelevantPTMPositions.add(ptm.position);
+          hotspotPTMPositions.add(ptm.position);
         }
       }
     }
   }
+  // For backward compat
+  const diseaseRelevantPTMPositions = proteinMatchesFilter
+    ? new Set(d.ptms.map(p => p.position)) // all PTMs relevant when protein matches
+    : hotspotPTMPositions;
 
   // ---- PTM markers (above track) ----
   const types = [...new Set(d.ptms.map(p => p.type))];
@@ -1311,9 +1322,10 @@ function renderPTMMap() {
       const x = scale(ptm.position);
       const my = trackY + yOff;
       const isRelevant = !diseaseFilter || diseaseRelevantPTMPositions.has(ptm.position);
+      const isHotspot = hotspotPTMPositions.has(ptm.position); // near a disease SNV
       const dimAlpha = diseaseFilter ? (isRelevant ? 1 : 0.15) : 1;
-      const radius = diseaseFilter && isRelevant ? 5.5 : 3.5;
-      const lineW = diseaseFilter && isRelevant ? 2 : 1;
+      const radius = diseaseFilter && isHotspot ? 6 : diseaseFilter && isRelevant ? 4.5 : 3.5;
+      const lineW = diseaseFilter && isHotspot ? 2.5 : diseaseFilter && isRelevant ? 1.5 : 1;
 
       ctx.globalAlpha = dimAlpha;
       ctx.strokeStyle = color + (diseaseFilter && isRelevant ? '90' : '40');
@@ -1321,12 +1333,16 @@ function renderPTMMap() {
       ctx.beginPath(); ctx.moveTo(x, trackY); ctx.lineTo(x, my); ctx.stroke();
       ctx.beginPath(); ctx.arc(x, my, radius, 0, Math.PI * 2);
       ctx.fillStyle = color; ctx.fill();
-      if (diseaseFilter && isRelevant) {
-        ctx.strokeStyle = '#fff40'; ctx.lineWidth = 1.5;
+      if (diseaseFilter && isHotspot) {
+        // Extra ring for hotspot PTMs (near a disease SNV)
+        ctx.strokeStyle = '#f59e0b'; ctx.lineWidth = 2;
+        ctx.stroke();
+      } else if (diseaseFilter && isRelevant) {
+        ctx.strokeStyle = color + 'cc'; ctx.lineWidth = 1;
         ctx.stroke();
       }
       ctx.globalAlpha = 1;
-      markers.push({ x, y: my, r: radius + 2, ptm, color, kind: 'ptm' });
+      markers.push({ x, y: my, r: radius + 2, ptm, color, kind: 'ptm', isHotspot });
     }
     li++;
   }
@@ -1350,7 +1366,9 @@ function renderPTMMap() {
     const x = scale(s.start_pos);
     const disNames = s.disease.map(dd => dd.recommended_name?.name || dd.disease_id || '').join(', ');
     const isNeuro = NEURO_RE.test(disNames);
-    const matchesFilter = diseaseFilter ? s.disease.some(dd => matchesDiseaseFilter(dd.recommended_name?.name || '')) : true;
+    const snvNameMatch = s.disease.some(dd => matchesDiseaseFilter(dd.recommended_name?.name || ''));
+    // If protein is linked to the disease, ALL disease SNVs are relevant (don't dim any)
+    const matchesFilter = diseaseFilter ? (proteinMatchesFilter || snvNameMatch) : true;
     const dimmed = diseaseFilter && !matchesFilter;
 
     // Draw proximity arc to nearby PTM sites (only for matching or unfiltered)
@@ -1398,12 +1416,13 @@ function renderPTMMap() {
   if (d.sources?.uniprot) { ctx.fillStyle = '#6c8aff'; ctx.fillText('UniProt', titleX + 4, 16); titleX += ctx.measureText('UniProt  ').width + 8; }
 
   // Disease filter indicator on canvas
-  if (diseaseFilter && diseaseRelevantPTMPositions.size > 0) {
+  if (diseaseFilter && proteinMatchesFilter) {
     ctx.fillStyle = '#f59e0b'; ctx.font = 'bold 10px system-ui';
-    ctx.fillText(`Filter: ${diseaseFilter} (${diseaseRelevantPTMPositions.size} PTMs highlighted)`, titleX + 10, 16);
+    const hotCount = hotspotPTMPositions.size;
+    ctx.fillText(`Filter: ${diseaseFilter}` + (hotCount > 0 ? ` (${hotCount} PTMs near disease SNVs)` : ` (all ${d.ptms.length} PTMs shown -- protein linked to disease)`), titleX + 10, 16);
   } else if (diseaseFilter) {
     ctx.fillStyle = '#f59e0b80'; ctx.font = '10px system-ui';
-    ctx.fillText(`Filter: ${diseaseFilter} (no PTMs near matching SNVs)`, titleX + 10, 16);
+    ctx.fillText(`Filter: ${diseaseFilter} (protein not directly linked)`, titleX + 10, 16);
   }
 
   // Hover
@@ -1449,10 +1468,13 @@ function renderImpactPanel() {
   const d = currentData;
   const snvs = d.snv || [];
   let disSNVs = snvs.filter(s => s.disease && s.disease.length > 0 && s.start_pos);
-  // Apply disease filter
-  if (diseaseFilter) {
+  // Disease filter logic: if protein is linked to the disease, ALL disease SNVs are relevant
+  // (because SNV disease labels are from BioMuta/cancer, not the neurodeg disease itself)
+  const proteinLinkedToFilter = diseaseFilter && d.diseases.some(dis => matchesDiseaseFilter(dis.name));
+  if (diseaseFilter && !proteinLinkedToFilter) {
     disSNVs = disSNVs.filter(s => s.disease.some(dd => matchesDiseaseFilter(dd.recommended_name?.name || '')));
   }
+  // When protein IS linked, keep all disease SNVs -- any mutation near a PTM on this protein matters
   const glyc = d.glycosylation || [];
   const phos = d.phosphorylation || [];
   const ptmAnnot = d.ptmAnnotation || [];
@@ -1522,10 +1544,15 @@ function renderImpactPanel() {
   html += '<div class="card-body">';
 
   html += '<p style="font-size:12px;color:var(--text2);margin-bottom:14px;line-height:1.6">';
-  html += '<strong>Important:</strong> Current databases (GlyGen, UniProt, iPTMnet) report <em>known PTM sites</em> on a protein, but do not label individual sites as "healthy" vs "disease." ';
-  html += 'PTM sites generally exist in both states. What changes in disease is typically the <em>level</em> of modification (e.g., tau hyperphosphorylation in Alzheimer\'s), ';
-  html += '<em>loss</em> of modification due to mutations, or <em>competition</em> between modification types (e.g., O-GlcNAc vs. phosphorylation at the same site). ';
-  html += 'Below we surface all available disease-relevant PTM signals from the data.</p>';
+  html += '<strong>How disease filtering works:</strong> PTM databases don\'t label individual sites as "healthy" vs "disease." ';
+  if (diseaseFilter && proteinLinkedToFilter) {
+    html += `This protein is <strong style="color:var(--orange)">linked to ${diseaseFilter}</strong> at the protein level, so all its PTMs are shown as disease-relevant context. `;
+    html += 'Disease SNV labels below come from BioMuta (often cancer mutations) -- they indicate sites where <em>any</em> disease mutation occurs near a PTM, not specifically ' + diseaseFilter + '. ';
+  } else {
+    html += 'What changes in disease is typically the <em>level</em> of modification (e.g., tau hyperphosphorylation), ';
+    html += '<em>loss</em> of modification due to mutations, or <em>competition</em> between modification types. ';
+  }
+  html += 'Below we surface all available disease-relevant PTM signals.</p>';
 
   // --- Section: PTM annotations with disease context ---
   if (diseaseAnnotations.length > 0 || normalAnnotations.length > 0) {
@@ -1742,14 +1769,15 @@ function filterSNV() {
   let d = currentData.snv;
   if (f==='disease') d = d.filter(s => s.disease && s.disease.length > 0);
   else if (f==='other') d = d.filter(s => !s.disease || s.disease.length === 0);
-  // Apply disease filter
-  if (diseaseFilter) {
-    d = d.filter(s => {
-      if (!s.disease || !s.disease.length) return false;
-      return s.disease.some(dd => matchesDiseaseFilter(dd.recommended_name?.name || ''));
-    });
+  // Apply disease filter: if protein is linked to the disease, show all disease SNVs
+  // (SNV disease names are often cancer/BioMuta -- not the neurodegenerative disease itself)
+  const proteinLinked = diseaseFilter && currentData.diseases.some(dis => matchesDiseaseFilter(dis.name));
+  if (diseaseFilter && !proteinLinked) {
+    // Protein not linked -- strict filter by SNV disease name
+    d = d.filter(s => s.disease?.some(dd => matchesDiseaseFilter(dd.recommended_name?.name || '')));
   }
-  document.getElementById('snvCount').textContent = d.length + ' variants' + (diseaseFilter ? ` (filtered: ${diseaseFilter})` : '');
+  // When protein IS linked, show all SNVs (don't filter out) -- they're all relevant context
+  document.getElementById('snvCount').textContent = d.length + ' variants' + (diseaseFilter ? ` (context: ${diseaseFilter})` : '');
   document.getElementById('snvBody').innerHTML = [...d].sort((a,b)=>(a.start_pos||0)-(b.start_pos||0)).map(s => {
     const hd = s.disease && s.disease.length > 0;
     return `<tr><td><strong>${s.site_lbl||s.start_pos||'?'}</strong></td>
