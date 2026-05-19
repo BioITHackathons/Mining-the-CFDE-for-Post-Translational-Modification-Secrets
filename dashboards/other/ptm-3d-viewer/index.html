@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Rat Protein 3D Structure Viewer - CFDE Hackathon</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pdbe-molstar@3.3.0/build/pdbe-molstar-light.css">
+<script src="https://cdn.jsdelivr.net/npm/pdbe-molstar@3.3.0/build/pdbe-molstar-plugin.js"></script>
+<style>
+:root {
+  --bg: #0f1117; --surface: #1a1d27; --surface2: #242836; --border: #2e3348;
+  --text: #e2e4eb; --text2: #9498ad; --accent: #6c8aff; --radius: 8px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+header {
+  background: var(--surface); border-bottom: 1px solid var(--border);
+  padding: 12px 20px; display: flex; align-items: center; gap: 16px; flex-shrink: 0; flex-wrap: wrap;
+}
+header h1 { font-size: 18px; font-weight: 600; color: var(--accent); }
+.tag { font-size: 10px; padding: 2px 8px; border-radius: 10px; background: var(--surface2); border: 1px solid var(--border); color: var(--text2); }
+
+.search-row {
+  background: var(--surface); border-bottom: 1px solid var(--border);
+  padding: 12px 20px; display: flex; gap: 10px; align-items: center; flex-shrink: 0; flex-wrap: wrap;
+}
+.search-row input {
+  background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 8px 14px; color: var(--text); font-size: 14px; outline: none; width: 280px;
+}
+.search-row input:focus { border-color: var(--accent); }
+button {
+  background: var(--accent); color: #fff; border: none; border-radius: var(--radius);
+  padding: 8px 20px; font-size: 14px; font-weight: 500; cursor: pointer;
+}
+button:hover { opacity: .85; }
+button:disabled { opacity: .5; cursor: not-allowed; }
+.examples { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.examples span { font-size: 12px; color: var(--text2); }
+.examples button {
+  font-size: 12px; padding: 4px 10px; background: var(--surface2);
+  border: 1px solid var(--border); color: var(--accent);
+}
+
+.viewer-area { flex: 1; position: relative; background: #fff; }
+#molstarViewer { width: 100%; height: 100%; }
+
+.info-bar {
+  position: absolute; top: 12px; left: 12px; z-index: 10;
+  background: rgba(15,17,23,.88); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 10px 14px; font-size: 13px; max-width: 380px; pointer-events: auto;
+}
+.info-bar h3 { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
+.info-bar .meta { font-size: 12px; color: var(--text2); line-height: 1.6; }
+.info-bar a { color: var(--accent); text-decoration: none; }
+.info-bar a:hover { text-decoration: underline; }
+.conf-legend { display: flex; gap: 8px; margin-top: 6px; font-size: 10px; flex-wrap: wrap; }
+.conf-item { display: flex; align-items: center; gap: 3px; color: var(--text2); }
+.conf-box { width: 14px; height: 10px; border-radius: 2px; }
+
+.loading-overlay {
+  position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(15,17,23,.9); display: flex; align-items: center; justify-content: center; z-index: 20;
+}
+.spinner { width: 28px; height: 28px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin .8s linear infinite; margin-right: 12px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.empty-state {
+  position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+  display: flex; align-items: center; justify-content: center; text-align: center;
+  padding: 40px; background: var(--bg); z-index: 5;
+}
+.empty-state h3 { font-size: 20px; margin-bottom: 10px; }
+.empty-state p { color: var(--text2); font-size: 14px; max-width: 500px; line-height: 1.6; }
+
+.hidden { display: none !important; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Protein 3D Structure Viewer</h1>
+  <span style="font-size:13px;color:var(--text2)">AlphaFold Predictions</span>
+  <div style="margin-left:auto;display:flex;gap:5px">
+    <span class="tag">AlphaFold</span>
+    <span class="tag">UniProt</span>
+  </div>
+</header>
+
+<div class="search-row">
+  <input type="text" id="searchInput" placeholder="Gene name or UniProt ID" />
+  <select id="orgSelect" style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:8px 10px;color:var(--text);font-size:14px;outline:none" onchange="updateExamples()">
+    <option value="10116">Rat (R. norvegicus)</option>
+    <option value="9606">Human (H. sapiens)</option>
+  </select>
+  <button id="searchBtn" onclick="doSearch()">Load Structure</button>
+  <div class="examples" id="examplesRow"></div>
+</div>
+<script>
+const EXAMPLES = {
+  '10116': [
+    ['Snca','Snca'],['Mapt','Mapt'],['App','App'],['Prnp','Prnp'],['Sod1','Sod1'],
+    ['Htt','Htt'],['Tardbp','Tardbp'],['Bace1','Bace1'],['Prkca','Prkca'],
+    ['Gsk3b','Gsk3b'],['Camk2a','Camk2a'],['P02770','P02770 (Albumin)']
+  ],
+  '9606': [
+    ['SNCA','SNCA'],['MAPT','MAPT'],['APP','APP'],['PRNP','PRNP'],['SOD1','SOD1'],
+    ['HTT','HTT'],['TARDBP','TARDBP'],['BACE1','BACE1'],['PRKCA','PRKCA'],
+    ['GSK3B','GSK3B'],['CAMK2A','CAMK2A'],['P05067','P05067 (APP)']
+  ]
+};
+function updateExamples() {
+  const org = document.getElementById('orgSelect').value;
+  const label = org === '9606' ? 'Human' : 'Rat';
+  const el = document.getElementById('examplesRow');
+  el.innerHTML = `<span>${label}:</span>` + EXAMPLES[org].map(([val,lbl]) =>
+    `<button onclick="go('${val}')">${lbl}</button>`
+  ).join('');
+}
+updateExamples();
+</script>
+
+<div class="viewer-area">
+  <div id="emptyState" class="empty-state">
+    <div>
+      <h3>Search for a protein</h3>
+      <p>Select an organism (Rat or Human), then enter a gene name or UniProt accession to load the AlphaFold-predicted 3D structure.</p>
+      <p style="margin-top:10px">Structures are colored by AlphaFold confidence (pLDDT). The viewer is the same one used on alphafold.ebi.ac.uk.</p>
+      <p style="margin-top:10px;font-size:12px;color:var(--text2)">Rat: 22,152 proteins (UP000002494) &middot; Human: 20,594 proteins (UP000005640)</p>
+    </div>
+  </div>
+
+  <div id="molstarViewer" class="hidden"></div>
+
+  <div id="infoBar" class="info-bar hidden">
+    <h3 id="protName">Protein</h3>
+    <div class="meta" id="protMeta"></div>
+    <div class="conf-legend">
+      <span style="color:var(--text2)">Confidence:</span>
+      <div class="conf-item"><div class="conf-box" style="background:#0053d6"></div>Very high (&gt;90)</div>
+      <div class="conf-item"><div class="conf-box" style="background:#65cbf3"></div>High (70-90)</div>
+      <div class="conf-item"><div class="conf-box" style="background:#ffdb13"></div>Low (50-70)</div>
+      <div class="conf-item"><div class="conf-box" style="background:#ff7d45"></div>Very low (&lt;50)</div>
+    </div>
+    <div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border);display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+      <label style="font-size:12px;color:var(--text2);white-space:nowrap">Highlight residue(s):</label>
+      <input type="text" id="resInput" placeholder="e.g. 80 or 40,87,129" style="background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:4px 8px;color:var(--text);font-size:12px;outline:none;width:140px" />
+      <button onclick="highlightResidues()" style="font-size:12px;padding:4px 12px">Highlight</button>
+      <button onclick="clearHL()" style="font-size:12px;padding:4px 10px;background:var(--surface2);border:1px solid var(--border);color:var(--text)">Clear</button>
+    </div>
+    <div id="hlStatus" style="font-size:11px;color:var(--accent);margin-top:4px;display:none"></div>
+  </div>
+
+  <div id="loadingOverlay" class="loading-overlay hidden">
+    <div class="spinner"></div>
+    <span style="color:var(--text2)" id="loadingMsg">Loading...</span>
+  </div>
+</div>
+
+<script>
+let viewer = null;
+
+function go(term) {
+  document.getElementById('searchInput').value = term;
+  doSearch();
+}
+
+async function doSearch() {
+  const term = document.getElementById('searchInput').value.trim();
+  if (!term) return;
+
+  // Show loading
+  document.getElementById('emptyState').classList.add('hidden');
+  document.getElementById('molstarViewer').classList.remove('hidden');
+  document.getElementById('infoBar').classList.add('hidden');
+  document.getElementById('loadingOverlay').classList.remove('hidden');
+  document.getElementById('searchBtn').disabled = true;
+  setMsg('Resolving protein...');
+
+  try {
+    const orgId = document.getElementById('orgSelect').value;
+    const orgLabel = orgId === '9606' ? 'human' : 'rat';
+
+    // 1) Resolve to UniProt accession
+    let accession = term;
+    let geneName = term;
+    let proteinName = '';
+    let length = 0;
+    let organism = '';
+
+    const isAcc = /^[A-Z][0-9][A-Z0-9]{3}[0-9](-\d+)?$/i.test(term);
+
+    if (!isAcc) {
+      setMsg(`Searching UniProt for ${orgLabel} "${term}"...`);
+      let res = await fetch(
+        `https://rest.uniprot.org/uniprotkb/search?query=gene_exact:${encodeURIComponent(term)}+AND+organism_id:${orgId}&fields=accession,gene_names,protein_name,length,organism_name&format=json&size=5`
+      );
+      let data = await res.json();
+
+      let match = data.results?.find(r => r.entryType === 'UniProtKB reviewed (Swiss-Prot)') || data.results?.[0];
+
+      if (!match) {
+        res = await fetch(
+          `https://rest.uniprot.org/uniprotkb/search?query=gene:${encodeURIComponent(term)}+AND+organism_id:${orgId}&fields=accession,gene_names,protein_name,length,organism_name&format=json&size=5`
+        );
+        data = await res.json();
+        match = data.results?.find(r => r.entryType === 'UniProtKB reviewed (Swiss-Prot)') || data.results?.[0];
+      }
+
+      if (!match) throw new Error(`No ${orgLabel} protein found for "${term}". Try a UniProt accession directly.`);
+
+      accession = match.primaryAccession;
+      geneName = match.genes?.[0]?.geneName?.value || term;
+      proteinName = match.proteinDescription?.recommendedName?.fullName?.value
+                 || match.proteinDescription?.submittedName?.[0]?.fullName?.value || '';
+      length = match.sequence?.length || 0;
+      organism = match.organism?.scientificName || '';
+    } else {
+      setMsg('Fetching protein info...');
+      try {
+        const infoRes = await fetch(`https://rest.uniprot.org/uniprotkb/${accession}.json`);
+        if (infoRes.ok) {
+          const info = await infoRes.json();
+          geneName = info.genes?.[0]?.geneName?.value || accession;
+          proteinName = info.proteinDescription?.recommendedName?.fullName?.value || '';
+          length = info.sequence?.length || 0;
+          organism = info.organism?.scientificName || '';
+        }
+      } catch(e) {}
+    }
+
+    const baseAcc = accession.split('-')[0];
+
+    // 2) Check AlphaFold has this protein
+    setMsg('Checking AlphaFold database...');
+    const afRes = await fetch(`https://alphafold.ebi.ac.uk/api/prediction/${baseAcc}`);
+    if (!afRes.ok) throw new Error(`No AlphaFold structure found for ${baseAcc} (${geneName}). AlphaFold may not have a prediction for this protein.`);
+    const afData = (await afRes.json())[0];
+    const cifUrl = afData.cifUrl;
+
+    // 3) Load structure in PDBe Molstar
+    setMsg('Loading 3D structure...');
+    const container = document.getElementById('molstarViewer');
+
+    if (viewer) {
+      await viewer.visual.update({
+        customData: { url: cifUrl, format: 'cif' },
+        alphafoldView: true,
+        bgColor: { r: 255, g: 255, b: 255 },
+        hideCanvasControls: ['animation'],
+      }, true);
+    } else {
+      viewer = new PDBeMolstarPlugin();
+      viewer.render(container, {
+        customData: { url: cifUrl, format: 'cif' },
+        alphafoldView: true,
+        bgColor: { r: 255, g: 255, b: 255 },
+        hideCanvasControls: ['animation'],
+      });
+    }
+
+    // Wait for load
+    await new Promise(resolve => {
+      if (viewer.events?.loadComplete) {
+        const sub = viewer.events.loadComplete.subscribe(() => { sub.unsubscribe(); resolve(); });
+        setTimeout(resolve, 10000);
+      } else {
+        setTimeout(resolve, 3000);
+      }
+    });
+
+    // 4) Show info
+    document.getElementById('protName').textContent = `${geneName} -- ${proteinName}`;
+    document.getElementById('protMeta').innerHTML = `
+      <strong>UniProt:</strong> <a href="https://www.uniprot.org/uniprot/${baseAcc}" target="_blank">${baseAcc}</a><br>
+      <strong>Organism:</strong> ${organism || (orgId === '9606' ? 'Homo sapiens (Human)' : 'Rattus norvegicus (Rat)')}<br>
+      ${length ? `<strong>Length:</strong> ${length} aa<br>` : ''}
+      <strong>AlphaFold:</strong> <a href="https://alphafold.ebi.ac.uk/entry/${baseAcc}" target="_blank">View on AlphaFold DB</a><br>
+      <strong>Structure:</strong> ${afData.pdbUrl ? `<a href="${afData.pdbUrl}" target="_blank">PDB</a>` : ''} ${cifUrl ? `<a href="${cifUrl}" target="_blank">mmCIF</a>` : ''}
+    `;
+    document.getElementById('infoBar').classList.remove('hidden');
+    document.getElementById('loadingOverlay').classList.add('hidden');
+
+  } catch(err) {
+    document.getElementById('loadingOverlay').classList.add('hidden');
+    document.getElementById('molstarViewer').classList.add('hidden');
+    document.getElementById('infoBar').classList.add('hidden');
+    document.getElementById('emptyState').classList.remove('hidden');
+    document.getElementById('emptyState').innerHTML = `
+      <div>
+        <h3>Error</h3>
+        <p style="color:#ff6b6b">${err.message}</p>
+        <p style="margin-top:12px">Try another gene name or UniProt accession.</p>
+      </div>`;
+  } finally {
+    document.getElementById('searchBtn').disabled = false;
+  }
+}
+
+function setMsg(m) { document.getElementById('loadingMsg').textContent = m; }
+
+document.getElementById('searchInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') doSearch();
+});
+document.getElementById('resInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') highlightResidues();
+});
+
+function highlightResidues() {
+  if (!viewer) return;
+  const raw = document.getElementById('resInput').value.trim();
+  if (!raw) return;
+
+  // Parse: supports "80", "40,87,129", "40-50", or mix like "40,87,100-110"
+  const residues = [];
+  for (const part of raw.split(',')) {
+    const p = part.trim();
+    const rangeMatch = p.match(/^(\d+)\s*-\s*(\d+)$/);
+    if (rangeMatch) {
+      const start = parseInt(rangeMatch[1]), end = parseInt(rangeMatch[2]);
+      for (let i = start; i <= end; i++) residues.push(i);
+    } else if (/^\d+$/.test(p)) {
+      residues.push(parseInt(p));
+    }
+  }
+  if (residues.length === 0) return;
+
+  const selectData = residues.map(r => ({
+    struct_asym_id: 'A',
+    start_residue_number: r,
+    end_residue_number: r,
+    color: { r: 255, g: 50, b: 50 },
+    sideChain: true,
+    representation: 'ball-and-stick',
+    representationColor: { r: 255, g: 50, b: 50 }
+  }));
+
+  viewer.visual.select({ data: selectData, nonSelectedColor: { r: 220, g: 220, b: 220 } });
+
+  // Focus on first residue
+  viewer.visual.focus([{ struct_asym_id: 'A', start_residue_number: residues[0], end_residue_number: residues[residues.length - 1] }]);
+
+  const status = document.getElementById('hlStatus');
+  status.style.display = 'block';
+  status.textContent = `Highlighted ${residues.length} residue${residues.length > 1 ? 's' : ''}: ${residues.length <= 10 ? residues.join(', ') : residues.slice(0, 8).join(', ') + '... +' + (residues.length - 8) + ' more'}`;
+}
+
+function clearHL() {
+  if (!viewer) return;
+  viewer.visual.clearSelection();
+  viewer.visual.reset({ theme: true, camera: true });
+  document.getElementById('hlStatus').style.display = 'none';
+  document.getElementById('resInput').value = '';
+}
+</script>
+</body>
+</html>

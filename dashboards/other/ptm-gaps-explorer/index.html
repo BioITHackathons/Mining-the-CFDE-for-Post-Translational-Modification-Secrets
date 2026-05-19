@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PTM Research Gaps &amp; CFDE Dataset Mapper</title>
+<style>
+:root {
+  --bg: #0f1117;
+  --card: #1a1d27;
+  --border: #2a2d3a;
+  --text: #e4e4e7;
+  --muted: #9ca3af;
+  --accent: #6366f1;
+  --accent2: #8b5cf6;
+  --green: #10b981;
+  --amber: #f59e0b;
+  --red: #ef4444;
+  --cyan: #06b6d4;
+  --rose: #f43f5e;
+  --lime: #84cc16;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; background:var(--bg); color:var(--text); line-height:1.6; }
+a { color:var(--accent); text-decoration:none; }
+a:hover { text-decoration:underline; }
+
+.header { padding:2rem 2rem 1rem; border-bottom:1px solid var(--border); }
+.header h1 { font-size:1.6rem; font-weight:700; margin-bottom:0.25rem; }
+.header p { color:var(--muted); font-size:0.9rem; max-width:80ch; }
+
+.controls { display:flex; gap:0.75rem; padding:1rem 2rem; flex-wrap:wrap; align-items:center; border-bottom:1px solid var(--border); background:var(--card); }
+.controls label { font-size:0.8rem; color:var(--muted); margin-right:0.25rem; }
+.controls select, .controls input {
+  background:var(--bg); color:var(--text); border:1px solid var(--border);
+  padding:0.4rem 0.75rem; border-radius:6px; font-size:0.85rem; outline:none;
+}
+.controls select:focus, .controls input:focus { border-color:var(--accent); }
+
+.layout { display:grid; grid-template-columns:340px 1fr; min-height:calc(100vh - 160px); }
+@media(max-width:900px) { .layout { grid-template-columns:1fr; } }
+
+.sidebar { border-right:1px solid var(--border); overflow-y:auto; max-height:calc(100vh - 160px); }
+.gap-item {
+  padding:1rem 1.25rem; border-bottom:1px solid var(--border); cursor:pointer;
+  transition:background 0.15s;
+}
+.gap-item:hover, .gap-item.active { background:var(--card); }
+.gap-item.active { border-left:3px solid var(--accent); }
+.gap-num { font-size:0.7rem; color:var(--accent); font-weight:600; text-transform:uppercase; letter-spacing:0.05em; }
+.gap-title { font-size:0.95rem; font-weight:600; margin:0.15rem 0 0.3rem; }
+.gap-impact { display:inline-block; font-size:0.7rem; padding:2px 8px; border-radius:99px; font-weight:500; }
+.impact-high { background:rgba(239,68,68,0.15); color:var(--red); }
+.impact-medium { background:rgba(245,158,11,0.15); color:var(--amber); }
+.impact-critical { background:rgba(244,63,94,0.15); color:var(--rose); }
+.tag-list { display:flex; flex-wrap:wrap; gap:4px; margin-top:0.4rem; }
+.tag { font-size:0.65rem; padding:2px 6px; border-radius:4px; background:rgba(99,102,241,0.15); color:var(--accent); }
+
+.detail { padding:2rem; overflow-y:auto; max-height:calc(100vh - 160px); }
+.detail h2 { font-size:1.35rem; font-weight:700; margin-bottom:0.5rem; }
+.detail h3 { font-size:1rem; font-weight:600; margin:1.25rem 0 0.5rem; color:var(--cyan); }
+
+.desc { color:var(--muted); margin-bottom:1rem; font-size:0.9rem; }
+
+.dataset-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:0.75rem; margin-bottom:1.25rem; }
+.ds-card {
+  background:var(--card); border:1px solid var(--border); border-radius:8px; padding:1rem;
+  transition:border-color 0.15s;
+}
+.ds-card:hover { border-color:var(--accent); }
+.ds-name { font-weight:600; font-size:0.9rem; margin-bottom:0.25rem; }
+.ds-program { font-size:0.7rem; color:var(--accent); font-weight:500; }
+.ds-type { font-size:0.78rem; color:var(--muted); margin-top:0.35rem; }
+.ds-contrib { font-size:0.78rem; color:var(--green); margin-top:0.25rem; }
+
+.rq-box {
+  background:var(--card); border:1px solid var(--border); border-radius:8px; padding:1rem 1.25rem;
+  margin-bottom:0.75rem; border-left:3px solid var(--accent2);
+}
+.rq-box strong { color:var(--accent2); font-size:0.8rem; }
+.rq-box p { font-size:0.88rem; margin-top:0.25rem; }
+
+.evidence-box {
+  background:var(--card); border:1px solid var(--border); border-radius:8px; padding:1rem 1.25rem;
+  margin-bottom:0.75rem; font-size:0.85rem;
+}
+.evidence-box strong { color:var(--amber); }
+
+.db-stats { display:grid; grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); gap:0.5rem; margin:1rem 0; }
+.stat-card { background:var(--card); border:1px solid var(--border); border-radius:6px; padding:0.75rem; text-align:center; }
+.stat-val { font-size:1.4rem; font-weight:700; color:var(--accent); }
+.stat-label { font-size:0.7rem; color:var(--muted); }
+
+.section-divider { border:0; border-top:1px solid var(--border); margin:1.5rem 0; }
+
+.empty-state { display:flex; align-items:center; justify-content:center; height:100%; color:var(--muted); font-size:1rem; }
+
+.footer { padding:1rem 2rem; border-top:1px solid var(--border); font-size:0.75rem; color:var(--muted); text-align:center; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>PTM Research Gaps &amp; CFDE Dataset Mapper</h1>
+  <p>Systematic analysis of post-translational modification research gaps that can be addressed by the NIH Common Fund Data Ecosystem. Based on our project database (280 PTM sites, 16 proteins, 5 neurodegenerative diseases) and published literature.</p>
+</div>
+
+<div class="controls">
+  <div>
+    <label>Impact:</label>
+    <select id="filterImpact">
+      <option value="all">All</option>
+      <option value="critical">Critical</option>
+      <option value="high">High</option>
+      <option value="medium">Medium</option>
+    </select>
+  </div>
+  <div>
+    <label>CFDE Program:</label>
+    <select id="filterProgram">
+      <option value="all">All Programs</option>
+    </select>
+  </div>
+  <div>
+    <label>PTM Type:</label>
+    <select id="filterPTM">
+      <option value="all">All Types</option>
+    </select>
+  </div>
+  <div>
+    <label>Search:</label>
+    <input type="text" id="searchBox" placeholder="Search gaps..." style="width:200px">
+  </div>
+  <div style="margin-left:auto; font-size:0.8rem; color:var(--muted)">
+    <span id="gapCount"></span> gaps shown
+  </div>
+</div>
+
+<div class="layout">
+  <div class="sidebar" id="sidebar"></div>
+  <div class="detail" id="detail">
+    <div class="empty-state">Select a research gap from the list to see details</div>
+  </div>
+</div>
+
+<div class="footer">
+  Mining the CFDE for Post-Translational Modification Secrets | BioIT Hackathon 2026 | Data from GlyGen, MoTrPAC, IDG/Pharos, GTEx, Kids First, LINCS, Metabolomics Workbench
+</div>
+
+<script>
+const GAPS = [
+  {
+    id: 1,
+    title: "Cross-PTM Crosstalk on Neurodegenerative Proteins",
+    impact: "critical",
+    ptmTypes: ["Phosphorylation", "O-linked glycosylation", "Acetylation", "Ubiquitylation"],
+    description: "The interplay between different PTM types on the same protein is poorly understood. Our database identifies 63 cross-PTM crosstalk candidates (pairs of different PTM types within 10 residues on the same protein), including 11 residues where O-linked glycosylation and phosphorylation compete for the same site (e.g., MAPT S400, SNCA S87, LRRK2 T2035). These competitive modifications may act as molecular switches in disease, but systematic characterization is lacking.",
+    why: "Tau hyperphosphorylation is a hallmark of Alzheimer's disease, and O-GlcNAcylation at the same sites may be protective. Wesseling et al. (2020, Cell) showed PTMs occur processively in AD progression. Ngoie Zola et al. (2023, Nat Commun) demonstrated that soluble PTM signatures (Ub-K369, Ac-K311) distinguish tauopathies. Understanding crosstalk could reveal new therapeutic switches.",
+    datasets: [
+      { name: "GlyGen", program: "GlyGen", type: "O-linked glycosylation sites on neurodegeneration proteins", contribution: "Provides 105 glycosylation sites (23 N-linked, 82 O-linked) across 16 target proteins with glycan structure annotations" },
+      { name: "MoTrPAC", program: "MoTrPAC", type: "Exercise-regulated phospho/acetyl/ubiquityl sites", contribution: "Phosphorylation, acetylation, and ubiquitylation sites from rat multi-tissue atlas, mapped to human orthologs; provides dynamic regulation data missing from static databases" },
+      { name: "C2M2 ptm.tsv", program: "C2M2", type: "Standardized PTM schema across all DCCs", contribution: "Uniform PTM ontology (GO terms) for cross-DCC integration of phospho + glyco + acetyl data" }
+    ],
+    questions: [
+      "On MAPT, which of the 7 shared O-GlcNAc/phospho sites (S111, S238, S400, S522, S534, S555, S717) show reciprocal regulation in exercise (MoTrPAC) vs. disease (GlyGen)?",
+      "Do exercise-induced phosphorylation changes at tau crosstalk sites (from MoTrPAC) protect against aberrant glycosylation patterns observed in AD (from GlyGen)?"
+    ],
+    evidence: "Our database view v_crosstalk_candidates identifies 63 pairs within 10 residues. FUS alone has 10+ crosstalk candidates where O-GlcNAc sites at T19, S42 overlap phosphorylation sites exactly (distance=0)."
+  },
+  {
+    id: 2,
+    title: "Tissue-Specific PTM Enzyme Expression in Brain Regions",
+    impact: "high",
+    ptmTypes: ["Phosphorylation", "N-linked glycosylation", "O-linked glycosylation"],
+    description: "While we know which PTMs occur on neurodegeneration proteins, we lack systematic maps of where the modifying enzymes (kinases, glycosyltransferases, deacetylases) are expressed across brain regions. Our database includes GTEx expression for 16 target genes across 51 tissues including 9 brain regions, but the expression of the PTM-writing enzymes themselves across these regions is unexplored.",
+    why: "Brain region-specific enzyme expression determines which PTMs can actually occur in which cells. A glycosyltransferase expressed only in cortex cannot modify proteins in the substantia nigra. This has direct implications for understanding why certain tauopathies affect specific brain regions.",
+    datasets: [
+      { name: "GTEx", program: "GTEx", type: "Tissue-specific RNA-seq across 54 tissues including 13 brain regions", contribution: "Expression levels (TPM) for kinases, glycosyltransferases, and other PTM enzymes in substantia nigra, cortex, hippocampus, cerebellum, amygdala, and more" },
+      { name: "HuBMAP", program: "HuBMAP", type: "Spatial transcriptomics and proteomics in human tissues", contribution: "Single-cell and spatial resolution of PTM enzyme expression within brain tissue architecture" },
+      { name: "GlyGen", program: "GlyGen", type: "Glycosyltransferase-substrate relationships", contribution: "Maps which glycosyltransferases modify which sites, enabling GTEx expression overlay to predict tissue-specific glycosylation patterns" }
+    ],
+    questions: [
+      "Which glycosyltransferases responsible for O-GlcNAcylation of tau are differentially expressed between substantia nigra (Parkinson's) and hippocampus (Alzheimer's)?",
+      "Do brain regions with high expression of competing kinases and glycosyltransferases show different PTM profiles on the same neurodegeneration proteins?"
+    ],
+    evidence: "Our database has 816 tissue_expression records covering all 16 proteins across 51 GTEx tissues. All 9 brain regions show expression of all 16 target genes, but enzyme expression is uncharacterized."
+  },
+  {
+    id: 3,
+    title: "Disease Variants That Disrupt PTM Sites",
+    impact: "critical",
+    ptmTypes: ["Phosphorylation", "O-linked glycosylation", "N-linked glycosylation"],
+    description: "Our database contains 1,245 genetic variants on the 16 target proteins, with 342 mapped to PTM sites (variant_ptm_site table). Of these, multiple missense variants directly abolish PTM sites (e.g., GRN S6G abolishes a phosphorylation site, APP T600M abolishes an O-linked glycosylation site). However, the functional consequences of most PTM-disrupting variants are unknown, especially in pediatric neurodegeneration.",
+    why: "Variants that abolish protective PTMs or create aberrant ones could be early drivers of disease. Mapping these systematically could identify children at risk before symptoms appear and suggest preventive interventions.",
+    datasets: [
+      { name: "Kids First", program: "Kids First", type: "Pediatric genomic variants", contribution: "Rare variants in children with neurological conditions, many at or near PTM sites on neurodegeneration proteins" },
+      { name: "GlyGen", program: "GlyGen", type: "SNVs at glycosylation sites", contribution: "Catalogs variants that alter glycosylation sequons (N-X-S/T for N-linked) or known O-linked sites" },
+      { name: "IDG / Pharos", program: "IDG", type: "Target annotations and activity data", contribution: "Druggability annotations for kinases and glycosyltransferases whose sites are disrupted by variants" },
+      { name: "Data Distillery KG", program: "DDKG", type: "Cross-DCC knowledge graph", contribution: "Links variant -> PTM site -> disease paths across programs using UBKG schema" }
+    ],
+    questions: [
+      "How many Kids First pediatric variants fall on known PTM sites of the 16 neurodegeneration proteins, and do any co-occur with early-onset disease?",
+      "For the 10 missense variants we identified that abolish PTM sites (e.g., GRN T182M, APP T276S), are carriers represented in Kids First cohorts?"
+    ],
+    evidence: "Our variant_ptm_site table maps 342 variant-PTM site pairs. Notable: GRN S6G and S81F abolish phospho sites; GRN T182M and T532N abolish O-glyco sites; LRRK2 T1410M abolishes a phospho site linked to Parkinson's kinase activity."
+  },
+  {
+    id: 4,
+    title: "Exercise as a Modifier of Disease-Associated PTMs",
+    impact: "high",
+    ptmTypes: ["Phosphorylation", "Acetylation", "Ubiquitylation"],
+    description: "MoTrPAC has generated the most comprehensive multi-tissue PTM atlas of exercise response in any organism, covering phosphorylation, acetylation, and ubiquitylation across 18 rat tissues. However, whether exercise-regulated PTM changes on neurodegeneration protein orthologs translate to neuroprotection in humans is unexplored. No systematic cross-referencing of MoTrPAC PTM data with disease-associated sites from GlyGen or clinical databases exists.",
+    why: "Exercise is one of the few interventions consistently shown to reduce neurodegeneration risk. If exercise specifically modulates PTMs at disease-critical sites (e.g., tau phosphorylation), this could explain the mechanism and suggest targeted interventions.",
+    datasets: [
+      { name: "MoTrPAC", program: "MoTrPAC", type: "Multi-tissue exercise PTM atlas (rat, mapped to human)", contribution: "Phospho, acetyl, and ubiquityl site changes with fold-change and time-course data across tissues including brain" },
+      { name: "GlyGen", program: "GlyGen", type: "Disease-associated glycosylation sites", contribution: "Reference set of disease-linked PTM sites to compare against exercise-regulated sites" },
+      { name: "GTEx", program: "GTEx", type: "Baseline expression in brain", contribution: "Confirms which exercise-regulated genes are expressed in human brain regions" }
+    ],
+    questions: [
+      "Do any MoTrPAC exercise-responsive phosphorylation sites on MAPT, LRRK2, or APP orthologs overlap with Alzheimer's/Parkinson's-associated PTM sites from GlyGen?",
+      "Is the direction of exercise-induced PTM change (up/down) opposite to the disease-associated direction, suggesting a protective mechanism?"
+    ],
+    evidence: "MoTrPAC data in our project covers phosphorylation, acetylation, and ubiquitylation across rat tissues. The exercise dashboard shows tissue-specific regulation patterns that need to be cross-referenced with the 280 disease-associated PTM sites in our database."
+  },
+  {
+    id: 5,
+    title: "Understudied PTM-Modifying Enzymes as Drug Targets",
+    impact: "high",
+    ptmTypes: ["Phosphorylation", "N-linked glycosylation", "O-linked glycosylation", "Acetylation"],
+    description: "Most PTM-targeted therapies focus on well-characterized kinases (e.g., GSK3-beta, CDK5 for tau phosphorylation). However, the enzymes responsible for glycosylation, deacetylation, and deubiquitination of neurodegeneration proteins are largely understudied. IDG/Pharos specifically catalogs the 'dark' druggable genome, including understudied kinases and glycosyltransferases.",
+    why: "If an understudied glycosyltransferase is the primary enzyme that O-GlcNAcylates tau at protective sites, it becomes a high-value drug target. IDG druggability scores could fast-track these from 'dark' to 'druggable'.",
+    datasets: [
+      { name: "IDG / Pharos", program: "IDG", type: "Druggability annotations, Tdark/Tbio/Tchem/Tclin classifications", contribution: "Identifies which PTM enzymes are understudied (Tdark) versus clinically validated (Tclin), with druggability predictions" },
+      { name: "LINCS", program: "LINCS", type: "L1000 perturbation signatures from kinase inhibitors and epigenetic modulators", contribution: "Gene expression signatures for compounds targeting PTM enzymes, enabling prediction of downstream PTM effects" },
+      { name: "GlyGen", program: "GlyGen", type: "Enzyme-substrate relationships for glycosylation", contribution: "Links specific glycosyltransferases to their target sites on neurodegeneration proteins" }
+    ],
+    questions: [
+      "Which glycosyltransferases that modify our 16 target proteins are classified as Tdark or Tbio in IDG, and could they be druggable?",
+      "Do LINCS perturbation signatures for kinase inhibitors targeting tau phosphorylation enzymes predict changes at the crosstalk glycosylation sites?"
+    ],
+    evidence: "Our database tracks 7 CFDE data sources including IDG/Pharos and LINCS, but the druggability analysis of PTM enzymes is not yet integrated."
+  },
+  {
+    id: 6,
+    title: "PTM-Based Fluid Biomarkers for Neurodegenerative Diseases",
+    impact: "critical",
+    ptmTypes: ["Phosphorylation", "O-linked glycosylation", "Ubiquitylation", "Acetylation"],
+    description: "Current AD diagnosis relies on total tau and p-tau181 in CSF, but these cannot distinguish AD from other tauopathies. Ngoie Zola et al. (2023) showed that soluble tau PTMs (Ub-K369, Ub-K343 for 4R-tauopathies; Ac-K311 for 3R-tauopathies; Ub-K311, Ub-K317 for AD-specific) could serve as differential biomarkers. Our database schema includes a biomarker table (currently empty) designed to capture these candidates, but systematic integration with glycan biomarkers from GlyGen and metabolite biomarkers from Metabolomics Workbench is missing.",
+    why: "Distinguishing AD from CBD, Pick's disease, and FTLD ante mortem would revolutionize clinical trials by ensuring correct patient stratification. Combining PTM, glycan, and metabolite biomarkers could create multi-modal diagnostic panels.",
+    datasets: [
+      { name: "GlyGen", program: "GlyGen", type: "Glycan biomarkers and glycoprotein biomarker data", contribution: "Glycan signatures in serum/CSF associated with neurodegeneration; glycoprotein biomarker candidates" },
+      { name: "Metabolomics Workbench", program: "Metabolomics", type: "Metabolites in PTM pathways", contribution: "UDP-GlcNAc levels (O-GlcNAcylation substrate), hexosamine pathway metabolites as indirect PTM biomarkers" },
+      { name: "ExRNA", program: "ExRNA", type: "Extracellular RNA profiles", contribution: "exRNA from PTM-regulating genes as circulating biomarkers; could indicate PTM enzyme activity changes" }
+    ],
+    questions: [
+      "Can GlyGen glycan biomarkers for neurodegeneration be combined with the tau ubiquitination biomarkers (Ub-K369, Ub-K311) from Ngoie Zola et al. to improve tauopathy differential diagnosis?",
+      "Do Metabolomics Workbench UDP-GlcNAc levels in CSF correlate with the O-GlcNAcylation levels at tau crosstalk sites (our 11 shared glyco/phospho sites)?"
+    ],
+    evidence: "Our biomarker table is empty -- this is the gap. Ngoie Zola et al. identified Ub-K369 (4R-specific), Ac-K311 (3R-specific), and Ub-K311+Ub-K317+Ub-K267 (AD-specific) as soluble tau biomarker candidates. These need integration with GlyGen and Metabolomics data."
+  },
+  {
+    id: 7,
+    title: "Glycan Structure Diversity at Neurodegeneration Protein Sites",
+    impact: "medium",
+    ptmTypes: ["N-linked glycosylation", "O-linked glycosylation"],
+    description: "GlyGen provides 75 distinct glycan structures (GlyTouCan accessions) attached to our 16 target proteins, with 184 site-modifier records linking glycans to specific sites. However, the functional significance of specific glycan structures at each site is unknown. Different glycan structures at the same site may have different effects on protein folding, aggregation, and disease.",
+    why: "Two different glycan structures at the same N-linked site on APP could have opposite effects on amyloid processing. Understanding structure-function relationships at the glycan level is essential for glyco-targeted therapeutics.",
+    datasets: [
+      { name: "GlyGen", program: "GlyGen", type: "Glycan structures with GlyTouCan accessions, compositions, masses", contribution: "75 unique glycan structures with molecular formulas, masses, and site-specific attachment data for all 16 proteins" },
+      { name: "GlyGen (KC)", program: "GlyGen", type: "Knowledge-curated glycosylation data", contribution: "Expert-curated glycosylation annotations with evidence quality scores from CFDE Knowledge Center" }
+    ],
+    questions: [
+      "Which of the 75 glycan structures in our database are enriched at sites known to be involved in protein aggregation (e.g., tau MTBR region, alpha-synuclein NAC region)?",
+      "Do sites with high glycan structural diversity (multiple different glycans at one site) show different disease associations than sites with single glycan types?"
+    ],
+    evidence: "Our modifier table has 75 glycan entries, all with GlyTouCan IDs. The v_site_modifiers view joins 184 records linking glycans to specific protein sites. APP has the most diverse glycan repertoire among our 16 proteins."
+  },
+  {
+    id: 8,
+    title: "Pathway-Level Integration of PTM Perturbation Data",
+    impact: "high",
+    ptmTypes: ["Phosphorylation", "Acetylation", "Ubiquitylation"],
+    description: "PTMNavigator (Muller et al., 2025, Nat Commun) demonstrated that projecting PTM data onto pathway diagrams reveals signaling cascades invisible in traditional gene-centric analyses. However, no study has systematically projected CFDE PTM data (MoTrPAC exercise PTMs, GlyGen glycosylation sites) onto neurodegeneration-relevant pathways. The LINCS perturbation signatures could provide the kinase activity context needed for pathway-level interpretation.",
+    why: "Individual PTM sites are hard to interpret in isolation. Pathway context reveals whether a modification activates or inhibits a signaling cascade. This is essential for predicting drug effects and identifying intervention points.",
+    datasets: [
+      { name: "LINCS", program: "LINCS", type: "L1000 gene expression signatures for kinase inhibitors and epigenetic modulators", contribution: "Perturbation signatures that show downstream effects of modulating PTM enzymes; enables KSEA and PTM-SEA analyses" },
+      { name: "MoTrPAC", program: "MoTrPAC", type: "Exercise-regulated PTM sites with fold-changes", contribution: "Quantitative PTM changes suitable for pathway enrichment analysis and PTMNavigator projection" },
+      { name: "IDG / Pharos", program: "IDG", type: "Kinase-substrate relationships", contribution: "Maps kinases to their phosphorylation substrates, enabling kinase activity inference from PTM data" }
+    ],
+    questions: [
+      "When MoTrPAC exercise-regulated phosphosites are projected onto mTOR and MAPK signaling pathways, which neurodegeneration-relevant nodes are engaged?",
+      "Do LINCS kinase inhibitor signatures for GSK3-beta and CDK5 predict changes at the tau phosphorylation sites identified in our database?"
+    ],
+    evidence: "PTMNavigator (Muller et al.) integrates ~3000 pathways from KEGG and WikiPathways with PTM-SEA, KSEA, and PHONEMeS analyses. Our MoTrPAC data has fold-change values suitable for this pipeline."
+  },
+  {
+    id: 9,
+    title: "Multi-Omics PTM-Disease Knowledge Graph",
+    impact: "medium",
+    ptmTypes: ["Phosphorylation", "N-linked glycosylation", "O-linked glycosylation", "Acetylation", "Ubiquitylation"],
+    description: "The CFDE Data Distillery Knowledge Graph (DDKG) integrates assertions from all DCCs into a unified Neo4j graph using the UBKG schema. However, PTM-centric queries across the DDKG are not established. Our project database provides a starting schema, but a graph-level integration linking protein -> PTM site -> PTM type -> glycan structure -> disease -> tissue -> enzyme -> drug target across all DCCs does not exist.",
+    why: "No single DCC has the complete picture. Only by traversing the knowledge graph from GlyGen glycosylation sites through IDG enzyme druggability to GTEx tissue expression can we find the most actionable therapeutic targets.",
+    datasets: [
+      { name: "Data Distillery KG", program: "DDKG", type: "Cross-DCC knowledge graph (UBKG schema, Neo4j)", contribution: "Unified graph linking all CFDE assertions; can answer multi-hop queries like 'protein -> PTM -> disease -> drug target'" },
+      { name: "C2M2 ptm.tsv", program: "C2M2", type: "Standardized PTM metadata across all DCCs", contribution: "Common PTM schema with protein, position, amino acid, PTM type (GO term), and subtype for cross-DCC integration" },
+      { name: "All 7 DCC sources", program: "Multiple", type: "Combined data from GlyGen, MoTrPAC, IDG, GTEx, Kids First, LINCS, Metabolomics", contribution: "Each DCC contributes a different facet of the PTM-disease relationship" }
+    ],
+    questions: [
+      "What is the shortest path in the DDKG from an understudied glycosyltransferase (IDG Tdark) through its glycosylation sites (GlyGen) to an Alzheimer's disease association?",
+      "Can the DDKG reveal multi-DCC evidence chains for specific PTM-disease hypotheses that no single DCC could support alone?"
+    ],
+    evidence: "Our database schema with 10 tables (protein, disease, ptm_type, ptm_site, ptm_evidence, protein_disease, variant, modifier, biomarker, tissue_expression) represents an initial relational model. The DDKG could extend this to a full graph traversal across all CFDE resources."
+  },
+  {
+    id: 10,
+    title: "Temporal Dynamics of PTMs in Disease Progression",
+    impact: "high",
+    ptmTypes: ["Phosphorylation", "Ubiquitylation", "Acetylation"],
+    description: "Wesseling et al. (2020, Cell) demonstrated that tau PTMs accumulate processively through Braak stages: early phosphorylation in the proline-rich region, followed by acetylation and ubiquitination in the microtubule-binding domain. However, the temporal dynamics of non-phosphorylation PTMs (glycosylation, acetylation, methylation) across disease stages are unknown. Current CFDE data captures snapshots, not trajectories.",
+    why: "Knowing when specific PTMs appear in disease progression is critical for developing stage-specific therapies. Early-stage interventions need different targets than late-stage treatments.",
+    datasets: [
+      { name: "GlyGen", program: "GlyGen", type: "Static glycosylation site catalog", contribution: "Provides the 'what' of glycosylation sites, but MoTrPAC and longitudinal studies could provide the 'when'" },
+      { name: "MoTrPAC", program: "MoTrPAC", type: "Time-course exercise PTM data", contribution: "Time-series PTM data (acute, 1-week, 2-week, 4-week training) providing a template for temporal PTM analysis" },
+      { name: "Kids First", program: "Kids First", type: "Pediatric cases with age-of-onset data", contribution: "Earliest ages at which disease-associated variants at PTM sites manifest, providing a temporal anchor" },
+      { name: "LINCS", program: "LINCS", type: "Time-course perturbation signatures", contribution: "Kinase inhibitor response over time shows temporal dynamics of PTM-regulated signaling" }
+    ],
+    questions: [
+      "Using MoTrPAC time-course data as a template, can we model the temporal order in which different PTM types appear on tau during exercise adaptation?",
+      "At what disease stage do the 11 glycosylation/phosphorylation crosstalk sites on tau shift from glycosylated (protective) to phosphorylated (pathogenic)?"
+    ],
+    evidence: "Wesseling et al. identified 4 processive PTM clusters (a->d) correlating with Braak stages 0-VI. Our database captures the endpoint PTM landscape (280 sites) but lacks temporal ordering."
+  }
+];
+
+// Collect all programs and PTM types for filters
+const allPrograms = new Set();
+const allPTMTypes = new Set();
+GAPS.forEach(g => {
+  g.datasets.forEach(d => allPrograms.add(d.program));
+  g.ptmTypes.forEach(t => allPTMTypes.add(t));
+});
+
+const progSelect = document.getElementById('filterProgram');
+[...allPrograms].sort().forEach(p => {
+  const o = document.createElement('option');
+  o.value = p; o.textContent = p;
+  progSelect.appendChild(o);
+});
+
+const ptmSelect = document.getElementById('filterPTM');
+[...allPTMTypes].sort().forEach(t => {
+  const o = document.createElement('option');
+  o.value = t; o.textContent = t;
+  ptmSelect.appendChild(o);
+});
+
+let activeGapId = null;
+
+function getFilteredGaps() {
+  const impact = document.getElementById('filterImpact').value;
+  const program = document.getElementById('filterProgram').value;
+  const ptm = document.getElementById('filterPTM').value;
+  const search = document.getElementById('searchBox').value.toLowerCase();
+
+  return GAPS.filter(g => {
+    if (impact !== 'all' && g.impact !== impact) return false;
+    if (program !== 'all' && !g.datasets.some(d => d.program === program)) return false;
+    if (ptm !== 'all' && !g.ptmTypes.includes(ptm)) return false;
+    if (search && !g.title.toLowerCase().includes(search) && !g.description.toLowerCase().includes(search)) return false;
+    return true;
+  });
+}
+
+function renderSidebar() {
+  const filtered = getFilteredGaps();
+  document.getElementById('gapCount').textContent = filtered.length;
+  const sb = document.getElementById('sidebar');
+  sb.innerHTML = '';
+  filtered.forEach(g => {
+    const div = document.createElement('div');
+    div.className = 'gap-item' + (g.id === activeGapId ? ' active' : '');
+    const impactClass = g.impact === 'critical' ? 'impact-critical' : g.impact === 'high' ? 'impact-high' : 'impact-medium';
+    div.innerHTML = `
+      <div class="gap-num">Gap #${g.id}</div>
+      <div class="gap-title">${g.title}</div>
+      <span class="gap-impact ${impactClass}">${g.impact}</span>
+      <div class="tag-list">${g.ptmTypes.map(t => `<span class="tag">${t}</span>`).join('')}</div>
+    `;
+    div.onclick = () => { activeGapId = g.id; renderSidebar(); renderDetail(g); };
+    sb.appendChild(div);
+  });
+}
+
+function renderDetail(g) {
+  const d = document.getElementById('detail');
+  const impactClass = g.impact === 'critical' ? 'impact-critical' : g.impact === 'high' ? 'impact-high' : 'impact-medium';
+  d.innerHTML = `
+    <h2>${g.title}</h2>
+    <span class="gap-impact ${impactClass}" style="font-size:0.8rem">${g.impact} impact</span>
+    <div class="tag-list" style="margin:0.5rem 0">${g.ptmTypes.map(t => `<span class="tag">${t}</span>`).join('')}</div>
+
+    <h3>The Gap</h3>
+    <p class="desc">${g.description}</p>
+
+    <h3>Why It Matters</h3>
+    <p class="desc">${g.why}</p>
+
+    <h3>CFDE Datasets That Can Fill This Gap</h3>
+    <div class="dataset-grid">
+      ${g.datasets.map(ds => `
+        <div class="ds-card">
+          <div class="ds-program">${ds.program}</div>
+          <div class="ds-name">${ds.name}</div>
+          <div class="ds-type">${ds.type}</div>
+          <div class="ds-contrib">${ds.contribution}</div>
+        </div>
+      `).join('')}
+    </div>
+
+    <h3>Concrete Research Questions</h3>
+    ${g.questions.map((q, i) => `
+      <div class="rq-box">
+        <strong>RQ${i+1}</strong>
+        <p>${q}</p>
+      </div>
+    `).join('')}
+
+    <h3>Supporting Evidence from Our Database</h3>
+    <div class="evidence-box">
+      <strong>Evidence:</strong> ${g.evidence}
+    </div>
+  `;
+}
+
+['filterImpact','filterProgram','filterPTM'].forEach(id => {
+  document.getElementById(id).addEventListener('change', renderSidebar);
+});
+document.getElementById('searchBox').addEventListener('input', renderSidebar);
+
+renderSidebar();
+</script>
+</body>
+</html>

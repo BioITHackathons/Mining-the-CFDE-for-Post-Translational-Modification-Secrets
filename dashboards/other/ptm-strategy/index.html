@@ -1,0 +1,661 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PTM Translational Target Explorer</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<style>
+:root {
+  --bg: #0f1117; --surface: #1a1d27; --surface2: #252836; --border: #353849;
+  --text: #e1e4ea; --text2: #9ca3b4; --accent: #6c8bef; --accent2: #4ecdc4;
+  --danger: #ef6c6c; --warning: #efb86c; --success: #6cefa8;
+  --phospho: #ef6c6c; --glyco: #6c8bef; --ubiq: #efb86c; --acet: #4ecdc4;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family: 'Inter', -apple-system, sans-serif; background: var(--bg); color: var(--text); line-height: 1.5; }
+.container { max-width: 1400px; margin: 0 auto; padding: 20px; }
+
+header { padding: 24px 0; border-bottom: 1px solid var(--border); margin-bottom: 24px; }
+header h1 { font-size: 1.6rem; font-weight: 700; color: var(--text); }
+header p { color: var(--text2); margin-top: 4px; font-size: 0.9rem; }
+
+.tabs { display: flex; gap: 4px; margin-bottom: 24px; flex-wrap: wrap; }
+.tab { padding: 8px 18px; background: var(--surface); border: 1px solid var(--border); border-radius: 6px;
+  color: var(--text2); cursor: pointer; font-size: 0.85rem; transition: all 0.2s; }
+.tab:hover { background: var(--surface2); color: var(--text); }
+.tab.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+.panel { display: none; }
+.panel.active { display: block; }
+
+.stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 24px; }
+.stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 16px; }
+.stat-card .value { font-size: 1.8rem; font-weight: 700; color: var(--accent); }
+.stat-card .label { font-size: 0.8rem; color: var(--text2); margin-top: 2px; }
+
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 24px; }
+.grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; margin-bottom: 24px; }
+@media (max-width: 900px) { .grid-2, .grid-3 { grid-template-columns: 1fr; } }
+
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 20px; }
+.card h3 { font-size: 1rem; margin-bottom: 12px; color: var(--text); }
+.card h4 { font-size: 0.85rem; color: var(--text2); margin-bottom: 8px; }
+
+table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+th { text-align: left; padding: 8px 10px; background: var(--surface2); color: var(--text2); font-weight: 600;
+  border-bottom: 2px solid var(--border); position: sticky; top: 0; }
+td { padding: 7px 10px; border-bottom: 1px solid var(--border); color: var(--text); }
+tr:hover td { background: rgba(108,139,239,0.05); }
+
+.badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 0.72rem; font-weight: 600; }
+.badge-phospho { background: rgba(239,108,108,0.15); color: var(--phospho); }
+.badge-glyco { background: rgba(108,139,239,0.15); color: var(--glyco); }
+.badge-ubiq { background: rgba(239,184,108,0.15); color: var(--warning); }
+.badge-acet { background: rgba(78,205,196,0.15); color: var(--accent2); }
+.badge-exp { background: rgba(108,239,168,0.15); color: var(--success); }
+.badge-high { background: rgba(239,108,108,0.2); color: var(--danger); }
+.badge-med { background: rgba(239,184,108,0.2); color: var(--warning); }
+
+.score-bar { height: 6px; border-radius: 3px; background: var(--surface2); margin-top: 4px; }
+.score-fill { height: 100%; border-radius: 3px; transition: width 0.3s; }
+
+select, input[type="text"] {
+  background: var(--surface2); border: 1px solid var(--border); color: var(--text);
+  padding: 6px 10px; border-radius: 4px; font-size: 0.85rem; outline: none;
+}
+select:focus, input:focus { border-color: var(--accent); }
+.controls { display: flex; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; align-items: center; }
+.controls label { font-size: 0.8rem; color: var(--text2); }
+
+.chart-wrap { position: relative; height: 320px; }
+.scroll-table { max-height: 500px; overflow-y: auto; }
+
+.insight-box { background: linear-gradient(135deg, rgba(108,139,239,0.08), rgba(78,205,196,0.08));
+  border: 1px solid rgba(108,139,239,0.2); border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+.insight-box h4 { color: var(--accent); margin-bottom: 6px; font-size: 0.9rem; }
+.insight-box p, .insight-box li { font-size: 0.83rem; color: var(--text2); }
+.insight-box ul { padding-left: 18px; margin-top: 6px; }
+.insight-box li { margin-bottom: 4px; }
+
+.target-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; 
+  padding: 16px; margin-bottom: 12px; transition: border-color 0.2s; }
+.target-card:hover { border-color: var(--accent); }
+.target-card .gene-label { font-size: 1.1rem; font-weight: 700; color: var(--accent); }
+.target-card .site-label { font-size: 0.85rem; color: var(--text); margin-top: 2px; }
+.target-card .rationale { font-size: 0.8rem; color: var(--text2); margin-top: 8px; line-height: 1.5; }
+.target-card .tags { margin-top: 8px; display: flex; gap: 6px; flex-wrap: wrap; }
+
+.priority-high { border-left: 3px solid var(--danger); }
+.priority-med { border-left: 3px solid var(--warning); }
+.priority-low { border-left: 3px solid var(--accent2); }
+
+.approach-card { background: var(--surface2); border-radius: 6px; padding: 12px; margin-top: 8px; }
+.approach-card h5 { font-size: 0.82rem; color: var(--accent2); margin-bottom: 4px; }
+.approach-card p { font-size: 0.78rem; color: var(--text2); }
+
+footer { margin-top: 40px; padding: 20px 0; border-top: 1px solid var(--border);
+  font-size: 0.75rem; color: var(--text2); text-align: center; }
+</style>
+</head>
+<body>
+<div class="container">
+<header>
+  <h1>PTM Translational Target Explorer</h1>
+  <p>Integrating GlyGen/CFDE PTM data with literature evidence to identify therapeutic and wet-lab research candidates in neurodegenerative disease</p>
+</header>
+
+<div class="tabs">
+  <div class="tab active" data-panel="overview">Overview</div>
+  <div class="tab" data-panel="targets">Therapeutic Targets</div>
+  <div class="tab" data-panel="wetlab">Wet Lab Candidates</div>
+  <div class="tab" data-panel="landscape">PTM Landscape</div>
+  <div class="tab" data-panel="variants">Variant-PTM Overlap</div>
+  <div class="tab" data-panel="literature">Literature Integration</div>
+</div>
+
+<!-- OVERVIEW PANEL -->
+<div class="panel active" id="overview">
+  <div class="stats-grid" id="statsGrid"></div>
+  
+  <div class="insight-box">
+    <h4>Strategy Summary</h4>
+    <p>This tool combines 280 PTM sites across 16 neurodegeneration-associated proteins (from GlyGen/CFDE) with findings from two key mass spectrometry studies of tau PTMs in Alzheimer's and tauopathies. The goal: identify which disease-altered PTMs are most actionable for wet-lab validation and therapeutic development.</p>
+  </div>
+
+  <div class="grid-2">
+    <div class="card">
+      <h3>PTM Sites per Protein</h3>
+      <div class="chart-wrap"><canvas id="chartSitesPerGene"></canvas></div>
+    </div>
+    <div class="card">
+      <h3>PTM Type Distribution</h3>
+      <div class="chart-wrap"><canvas id="chartPtmTypes"></canvas></div>
+    </div>
+  </div>
+  <div class="grid-2">
+    <div class="card">
+      <h3>Evidence Quality</h3>
+      <div class="chart-wrap"><canvas id="chartEvidence"></canvas></div>
+    </div>
+    <div class="card">
+      <h3>Disease Associations</h3>
+      <div class="chart-wrap"><canvas id="chartDiseases"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<!-- THERAPEUTIC TARGETS PANEL -->
+<div class="panel" id="targets">
+  <div class="insight-box">
+    <h4>Prioritization Criteria</h4>
+    <p>Targets are scored based on: (1) strong experimental evidence from GlyGen, (2) disease-specificity from the literature (Wesseling 2020, Ngoie Zola 2023), (3) presence of nearby pathogenic variants, (4) druggability of the modifying enzyme. High-priority targets have convergent evidence from multiple sources.</p>
+  </div>
+  <div class="controls">
+    <label>Disease focus:</label>
+    <select id="targetDisease">
+      <option value="all">All Neurodegenerative</option>
+      <option value="alzheimer">Alzheimer's Disease</option>
+      <option value="parkinson">Parkinson's Disease</option>
+      <option value="als">ALS</option>
+      <option value="huntington">Huntington's Disease</option>
+      <option value="ftd">Frontotemporal Dementia</option>
+    </select>
+    <label>Priority:</label>
+    <select id="targetPriority">
+      <option value="all">All</option>
+      <option value="high">High Only</option>
+      <option value="medium">Medium+</option>
+    </select>
+  </div>
+  <div id="targetsList"></div>
+</div>
+
+<!-- WET LAB CANDIDATES PANEL -->
+<div class="panel" id="wetlab">
+  <div class="insight-box">
+    <h4>Translational Wet Lab Approaches</h4>
+    <p>Based on the PTM landscape and literature findings, these are concrete experimental approaches organized by technique. Each candidate includes the specific PTM site, protein context, and suggested assay methodology.</p>
+  </div>
+  <div id="wetlabContent"></div>
+</div>
+
+<!-- PTM LANDSCAPE PANEL -->
+<div class="panel" id="landscape">
+  <div class="controls">
+    <label>Protein:</label>
+    <select id="landscapeGene"><option value="all">All Proteins</option></select>
+    <label>PTM Type:</label>
+    <select id="landscapePtm">
+      <option value="all">All Types</option>
+      <option value="glycosylation">Glycosylation</option>
+      <option value="phosphorylation">Phosphorylation</option>
+    </select>
+    <label>Search:</label>
+    <input type="text" id="landscapeSearch" placeholder="Gene, position, residue...">
+  </div>
+  <div class="card">
+    <div class="scroll-table">
+      <table id="landscapeTable">
+        <thead><tr><th>Gene</th><th>Pos</th><th>Residue</th><th>PTM Type</th><th>Subtype</th><th>Evidence</th><th>Exp. Count</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- VARIANT-PTM OVERLAP PANEL -->
+<div class="panel" id="variants">
+  <div class="insight-box">
+    <h4>Variant-PTM Proximity Analysis</h4>
+    <p>Missense variants within 5 residues of a PTM site may disrupt modification, creating or abolishing regulatory events. These are high-value candidates for functional studies -- a single amino acid change near a glycosylation or phosphorylation site can alter protein folding, aggregation, or signaling.</p>
+  </div>
+  <div class="controls">
+    <label>Gene:</label>
+    <select id="variantGene"><option value="all">All</option></select>
+    <label>Max distance:</label>
+    <select id="variantDist">
+      <option value="0">Direct (0)</option>
+      <option value="2">Within 2</option>
+      <option value="5" selected>Within 5</option>
+    </select>
+  </div>
+  <div class="grid-2">
+    <div class="card">
+      <h3>Overlaps by Gene</h3>
+      <div class="chart-wrap"><canvas id="chartOverlaps"></canvas></div>
+    </div>
+    <div class="card">
+      <h3>Distance Distribution</h3>
+      <div class="chart-wrap"><canvas id="chartDistDist"></canvas></div>
+    </div>
+  </div>
+  <div class="card" style="margin-top:16px">
+    <div class="scroll-table">
+      <table id="variantTable">
+        <thead><tr><th>Gene</th><th>Variant</th><th>PTM Site</th><th>PTM Type</th><th>Distance</th><th>Impact</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- LITERATURE INTEGRATION PANEL -->
+<div class="panel" id="literature">
+  <div class="insight-box">
+    <h4>Key Literature Findings Mapped to GlyGen Data</h4>
+    <p>The two articles in the project assets provide critical context for interpreting the GlyGen PTM data and prioritizing targets.</p>
+  </div>
+  <div id="litContent"></div>
+</div>
+
+<footer>
+  PTM Translational Target Explorer | Data: GlyGen/CFDE + Wesseling et al. (Cell 2020) + Ngoie Zola et al. (Nat Commun 2023) | BioIT Hackathon
+</footer>
+</div>
+
+<script src="data.js"></script>
+<script>
+// ============ TAB NAVIGATION ============
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById(tab.dataset.panel).classList.add('active');
+  });
+});
+
+const D = PTM_DATA;
+const colors = { phospho: '#ef6c6c', glyco: '#6c8bef', ubiq: '#efb86c', acet: '#4ecdc4' };
+
+// ============ OVERVIEW ============
+function renderOverview() {
+  const sg = document.getElementById('statsGrid');
+  const stats = [
+    { v: D.stats.proteins, l: 'Proteins Analyzed' },
+    { v: D.stats.sites, l: 'PTM Sites Mapped' },
+    { v: D.stats.experimental, l: 'Experimentally Validated' },
+    { v: D.stats.overlaps, l: 'Variant-PTM Overlaps' },
+    { v: D.stats.modifiers, l: 'Glycan Modifiers' },
+    { v: Object.keys(D.proteinDiseases).length, l: 'Disease-Linked Proteins' }
+  ];
+  sg.innerHTML = stats.map(s => `<div class="stat-card"><div class="value">${s.v}</div><div class="label">${s.l}</div></div>`).join('');
+
+  // Sites per gene chart
+  const geneCounts = {};
+  D.sites.forEach(s => geneCounts[s.gene] = (geneCounts[s.gene]||0) + 1);
+  const sorted = Object.entries(geneCounts).sort((a,b) => b[1]-a[1]);
+  new Chart(document.getElementById('chartSitesPerGene'), {
+    type: 'bar',
+    data: { labels: sorted.map(s=>s[0]), datasets: [{ data: sorted.map(s=>s[1]), backgroundColor: '#6c8bef88', borderColor: '#6c8bef', borderWidth: 1 }] },
+    options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{x:{ticks:{color:'#9ca3b4',font:{size:10}}},y:{ticks:{color:'#9ca3b4'},grid:{color:'#353849'}}} }
+  });
+
+  // PTM types
+  const typeCounts = {};
+  D.sites.forEach(s => { const k = s.subtype || s.ptmType; typeCounts[k] = (typeCounts[k]||0) + 1; });
+  const typeSort = Object.entries(typeCounts).sort((a,b)=>b[1]-a[1]).slice(0,8);
+  new Chart(document.getElementById('chartPtmTypes'), {
+    type: 'doughnut',
+    data: { labels: typeSort.map(t=>t[0]), datasets: [{ data: typeSort.map(t=>t[1]), backgroundColor: ['#6c8bef','#4ecdc4','#ef6c6c','#efb86c','#a78bfa','#f472b6','#34d399','#fbbf24'] }] },
+    options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{position:'right',labels:{color:'#9ca3b4',font:{size:10}}}} }
+  });
+
+  // Evidence quality
+  const evTypes = {};
+  D.sites.forEach(s => { Object.entries(s.evidence).forEach(([k,v]) => evTypes[k] = (evTypes[k]||0) + v); });
+  new Chart(document.getElementById('chartEvidence'), {
+    type: 'pie',
+    data: { labels: Object.keys(evTypes), datasets: [{ data: Object.values(evTypes), backgroundColor: ['#6cefa8','#6c8bef','#efb86c'] }] },
+    options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{position:'right',labels:{color:'#9ca3b4',font:{size:11}}}} }
+  });
+
+  // Disease associations
+  const disCounts = {};
+  Object.values(D.proteinDiseases).flat().forEach(d => disCounts[d.disease] = (disCounts[d.disease]||0) + 1);
+  const disSort = Object.entries(disCounts).sort((a,b)=>b[1]-a[1]).slice(0,6);
+  new Chart(document.getElementById('chartDiseases'), {
+    type: 'bar',
+    data: { labels: disSort.map(d=>d[0].replace(/'s/g,"'s").substring(0,25)), datasets: [{ data: disSort.map(d=>d[1]), backgroundColor: '#4ecdc488', borderColor: '#4ecdc4', borderWidth:1 }] },
+    options: { indexAxis:'y', responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{x:{ticks:{color:'#9ca3b4'}},y:{ticks:{color:'#9ca3b4',font:{size:10}},grid:{color:'#353849'}}} }
+  });
+}
+
+// ============ THERAPEUTIC TARGETS ============
+const therapeuticTargets = [
+  {
+    gene: 'MAPT', site: 'Tau Ub-K311 / Ub-K317', priority: 'high',
+    diseases: ['alzheimer'],
+    rationale: 'AD-specific ubiquitination sites on soluble tau (100% and 87% of AD cases). Ub-K311 and Ub-K317 deubiquitination increases tau acetylation and aggregation (Yan 2022). Targeting USP11 (the X-linked deubiquitinase) could reduce tauopathy. Wesseling (2020) ranked these as the #1 discriminating PTMs between AD and control by PLS-DA.',
+    approach: 'Develop antibodies against Ub-K311/K317 epitopes for immunotherapy; screen USP11 inhibitors as tau-protective agents.',
+    tags: ['Biomarker','Immunotherapy','Drug Target','AD-Specific']
+  },
+  {
+    gene: 'MAPT', site: 'Tau Ub-K267 + P-S262', priority: 'high',
+    diseases: ['alzheimer'],
+    rationale: 'This combined PTM event is exclusively observed in AD soluble tau (87% of cases, 0% in other tauopathies). P-S262 alone is found in CBD/FTLD, but its coupling with Ub-K267 is AD-specific. The paper suggests Ub-K267 may protect against aggregation when S262 is phosphorylated.',
+    approach: 'Develop a dual-epitope antibody targeting both modifications simultaneously for AD-specific diagnostics; investigate whether enhancing K267 ubiquitination prevents tau aggregation.',
+    tags: ['AD-Specific','Diagnostics','Aggregation Mechanism']
+  },
+  {
+    gene: 'MAPT', site: 'Tau Ub-K369 / Ub-K343', priority: 'high',
+    diseases: ['alzheimer','ftd'],
+    rationale: '4R-tauopathy specific markers (100% in CBD, 50% in FTLD-4R). Soluble tau Ub-K369 and Ub-K343 strongly correlate with 4R-tau aggregates (Spearman r>0.49, Bonferroni-corrected p<0.05). Could distinguish CBD/PSP from 3R tauopathies in CSF.',
+    approach: 'Develop CSF/plasma assay targeting Ub-K369 for differential diagnosis of 4R vs 3R tauopathies; validate with targeted mass spectrometry (SureQuant) in patient biofluids.',
+    tags: ['4R-Tauopathy','Biomarker','CSF Assay','Differential Diagnosis']
+  },
+  {
+    gene: 'MAPT', site: 'Tau Ac-K311 + P-S184/S185', priority: 'medium',
+    diseases: ['alzheimer','ftd'],
+    rationale: '3R-tauopathy specific markers. Ac-K311 found in PiD (80%), FTLD-3R (83%), and AD (60%), but absent in CBD/FTLD-4R. P-S184+S185 correlates with 3R aggregates. These could complement Ub-K369/K343 for full tauopathy classification.',
+    approach: 'Combine with 4R markers into a multiplexed assay panel for complete tauopathy subtyping from a single CSF draw.',
+    tags: ['3R-Tauopathy','Biomarker','Multiplexed Assay']
+  },
+  {
+    gene: 'MAPT', site: 'Tau P-T217 / P-T212', priority: 'high',
+    diseases: ['alzheimer'],
+    rationale: 'P-T217 is the leading plasma biomarker for AD (outperforms P-T181). Wesseling (2020) shows P-T212 appears to protect against aggregation: soluble tau has P-T212+P-T217, but aggregated tau has P-T217 alone. This suggests P-T212 is a protective modification.',
+    approach: 'Investigate kinases that phosphorylate T212 as potential neuroprotective drug targets; develop assays distinguishing mono- vs dual-phosphorylation for staging.',
+    tags: ['Biomarker','Protective PTM','Drug Target','Staging']
+  },
+  {
+    gene: 'APP', site: 'N-glycosylation sites (N542, N571, N467)', priority: 'medium',
+    diseases: ['alzheimer'],
+    rationale: 'APP has 39 PTM sites in GlyGen with strong experimental evidence. N-linked glycosylation of APP affects BACE1 cleavage and amyloid-beta production. Altered glycosylation patterns in AD brains suggest glycan-targeted approaches.',
+    approach: 'Profile APP glycoforms in AD vs control brain lysates using lectin arrays; test whether specific glycosyltransferase inhibitors alter BACE1 processing of APP.',
+    tags: ['Glycosylation','Beta-secretase','Amyloid Pathway']
+  },
+  {
+    gene: 'SNCA', site: 'P-S129 and O-GlcNAcylation', priority: 'medium',
+    diseases: ['parkinson'],
+    rationale: 'Alpha-synuclein P-S129 is the hallmark PTM in Lewy bodies (>90% phosphorylated). O-GlcNAcylation competes with phosphorylation and may be protective. GlyGen shows 13 PTM sites on SNCA with glycosylation data.',
+    approach: 'Test O-GlcNAcase (OGA) inhibitors to increase O-GlcNAc levels on SNCA; measure effect on P-S129 and aggregation in cell models.',
+    tags: ['Phospho-Glyco Crosstalk','OGA Inhibitor','Aggregation']
+  },
+  {
+    gene: 'LRRK2', site: 'Autophosphorylation at S1292, S935', priority: 'medium',
+    diseases: ['parkinson'],
+    rationale: 'LRRK2 has 29 PTM sites in GlyGen. LRRK2 kinase inhibitors are in clinical trials. S1292 autophosphorylation is a readout for kinase activity. Glycosylation at nearby sites could modulate kinase domain conformation.',
+    approach: 'Map glycosylation changes on LRRK2 in G2019S mutant vs WT; correlate with kinase activity and S1292/S935 phosphorylation status.',
+    tags: ['Kinase Inhibitor','Clinical Trial','Glycosylation-Kinase Crosstalk']
+  },
+  {
+    gene: 'TREM2', site: 'N-glycosylation (N79, N207)', priority: 'medium',
+    diseases: ['alzheimer'],
+    rationale: 'TREM2 R47H variant increases AD risk. TREM2 glycosylation is critical for cell-surface expression and ligand binding. GlyGen shows 2 N-glycosylation sites. Altered glycosylation could phenocopy loss-of-function variants.',
+    approach: 'Compare glycan profiles of WT vs R47H TREM2 expressed in microglia; test whether glycan-engineered TREM2 restores function.',
+    tags: ['Microglia','Loss-of-function','Glycan Engineering']
+  },
+  {
+    gene: 'SOD1', site: 'Oxidative modifications and glycosylation', priority: 'low',
+    diseases: ['als'],
+    rationale: 'SOD1 mutations cause ~20% of familial ALS. GlyGen shows 6 PTM sites. Oxidative modifications can mimic effects of pathogenic mutations on SOD1 misfolding.',
+    approach: 'Use mass spectrometry to profile PTM differences between WT and mutant SOD1 aggregates from patient-derived motor neurons.',
+    tags: ['ALS','Protein Misfolding','iPSC Models']
+  },
+  {
+    gene: 'HTT', site: 'Glycosylation and phosphorylation crosstalk', priority: 'low',
+    diseases: ['huntington'],
+    rationale: 'Huntingtin has 25 PTM sites in GlyGen. Phosphorylation at S421 by Akt is neuroprotective. Glycosylation patterns on HTT are largely uncharacterized.',
+    approach: 'Map O-GlcNAcylation sites on HTT polyQ expansion variants; test whether O-GlcNAc modulates aggregation or S421 phosphorylation.',
+    tags: ['PolyQ','O-GlcNAc','Neuroprotection']
+  }
+];
+
+function renderTargets() {
+  const diseaseFilter = document.getElementById('targetDisease').value;
+  const priorityFilter = document.getElementById('targetPriority').value;
+  
+  let filtered = therapeuticTargets;
+  if (diseaseFilter !== 'all') filtered = filtered.filter(t => t.diseases.includes(diseaseFilter));
+  if (priorityFilter === 'high') filtered = filtered.filter(t => t.priority === 'high');
+  if (priorityFilter === 'medium') filtered = filtered.filter(t => t.priority !== 'low');
+
+  document.getElementById('targetsList').innerHTML = filtered.map(t => `
+    <div class="target-card priority-${t.priority}">
+      <div class="gene-label">${t.gene} <span class="badge badge-${t.priority === 'high' ? 'high' : 'med'}">${t.priority.toUpperCase()}</span></div>
+      <div class="site-label">${t.site}</div>
+      <div class="rationale">${t.rationale}</div>
+      <div class="approach-card">
+        <h5>Suggested Approach</h5>
+        <p>${t.approach}</p>
+      </div>
+      <div class="tags">${t.tags.map(tag => `<span class="badge badge-glyco">${tag}</span>`).join('')}</div>
+    </div>
+  `).join('');
+}
+
+document.getElementById('targetDisease').addEventListener('change', renderTargets);
+document.getElementById('targetPriority').addEventListener('change', renderTargets);
+
+// ============ WET LAB CANDIDATES ============
+function renderWetLab() {
+  const approaches = [
+    {
+      title: 'Mass Spectrometry-Based PTM Profiling',
+      icon: 'MS',
+      experiments: [
+        { name: 'Targeted SureQuant assay for tau PTM biomarkers in CSF', 
+          detail: 'Replicate Ngoie Zola et al.\'s approach: use AQUA-grade isotopically labeled peptides for Ub-K369, Ub-K343, Ac-K311, and Ub-K311 in CSF samples. This would be the first validation of brain-soluble PTM signatures in biofluids.', 
+          proteins: 'MAPT', priority: 'high' },
+        { name: 'FLEXITau stoichiometric profiling of patient-derived tau',
+          detail: 'Apply Wesseling et al.\'s FLEXITau method to tau isolated from iPSC-derived neurons carrying MAPT mutations. Map full PTM stoichiometry to identify which mutations alter the processive PTM cascade.',
+          proteins: 'MAPT', priority: 'high' },
+        { name: 'Glycoproteomics of APP processing intermediates',
+          detail: 'Use lectin enrichment + LC-MS/MS to profile N-glycans on APP, sAPPalpha, sAPPbeta, and CTF fragments in AD vs control brain lysates. Compare glycoforms between BACE1-cleaved and alpha-secretase-cleaved products.',
+          proteins: 'APP, BACE1', priority: 'medium' }
+      ]
+    },
+    {
+      title: 'Cell-Based Functional Assays',
+      icon: 'Cell',
+      experiments: [
+        { name: 'Tau seeding assay with defined PTM combinations',
+          detail: 'Generate recombinant tau with specific PTM combinations (e.g., P-T217+P-T212 vs P-T217 alone) using enzymatic or amber codon approaches. Test seeding activity in HEK293 FRET biosensor cells. This directly tests the protective PTM hypothesis from Wesseling 2020.',
+          proteins: 'MAPT', priority: 'high' },
+        { name: 'USP11 knockdown in tauopathy neurons',
+          detail: 'Knock down USP11 (tau deubiquitinase at K311/K317) in iPSC-derived neurons expressing P301L tau. Measure: tau ubiquitination levels, acetylation changes, aggregation, and neuronal viability. Female neurons may show stronger effects (USP11 is X-linked).',
+          proteins: 'MAPT', priority: 'high' },
+        { name: 'OGA inhibitor treatment in synuclein models',
+          detail: 'Treat primary neurons or SNCA-overexpressing cells with Thiamet-G (OGA inhibitor) to boost O-GlcNAcylation. Measure P-S129 levels, soluble vs insoluble alpha-synuclein ratios, and inclusion formation.',
+          proteins: 'SNCA', priority: 'medium' },
+        { name: 'TREM2 glycosylation and microglia function',
+          detail: 'Express WT vs R47H TREM2 in iPSC-derived microglia. Profile cell-surface glycan profiles by flow cytometry with lectin panels. Correlate with phagocytosis, TREM2 shedding, and lipid ligand binding.',
+          proteins: 'TREM2', priority: 'medium' }
+      ]
+    },
+    {
+      title: 'Antibody & Assay Development',
+      icon: 'Ab',
+      experiments: [
+        { name: 'AD-specific tau antibody panel',
+          detail: 'Generate monoclonal antibodies against: (1) Ub-K311 peptide, (2) Ub-K317 peptide, (3) combined Ub-K267 + P-S262 epitope. Validate specificity using synthetic modified peptides and AD vs control brain lysates. These would be the first antibodies targeting AD-specific ubiquitination.',
+          proteins: 'MAPT', priority: 'high' },
+        { name: 'Multiplexed tauopathy classification immunoassay',
+          detail: 'Build a Luminex or Simoa panel combining 4R markers (Ub-K369, Ub-K343) + 3R markers (Ac-K311) + AD markers (Ub-K311) for single-CSF-draw tauopathy subtyping. This directly translates Ngoie Zola et al.\'s findings to clinical utility.',
+          proteins: 'MAPT', priority: 'high' },
+        { name: 'Glycan-specific ELISA for APP isoforms',
+          detail: 'Develop sandwich ELISAs using glycan-binding lectins + APP antibodies to quantify specific APP glycoforms in plasma/CSF as AD biomarkers.',
+          proteins: 'APP', priority: 'low' }
+      ]
+    },
+    {
+      title: 'Structural & Computational Studies',
+      icon: 'Struct',
+      experiments: [
+        { name: 'Cryo-EM of PTM-decorated tau filaments',
+          detail: 'Incorporate specific PTMs (Ub-K311, Ac-K369, P-S262) into in vitro assembled tau filaments. Solve cryo-EM structures to determine how PTMs alter the Alzheimer fold (Fitzpatrick 2017). This bridges the PTM map to structural biology.',
+          proteins: 'MAPT', priority: 'medium' },
+        { name: 'Molecular dynamics of glycosylated APP at BACE1 cleavage site',
+          detail: 'Run all-atom MD simulations of glycosylated vs unglycosylated APP transmembrane domain. Predict how N-glycans near the beta-secretase site influence cleavage accessibility.',
+          proteins: 'APP, BACE1', priority: 'low' }
+      ]
+    }
+  ];
+
+  document.getElementById('wetlabContent').innerHTML = approaches.map(a => `
+    <div class="card" style="margin-bottom:16px">
+      <h3>${a.title}</h3>
+      ${a.experiments.map(e => `
+        <div class="target-card priority-${e.priority}" style="margin-top:10px">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <div class="site-label" style="font-weight:600">${e.name}</div>
+            <span class="badge badge-${e.priority==='high'?'high':'med'}">${e.priority.toUpperCase()}</span>
+          </div>
+          <div class="rationale" style="margin-top:6px">${e.detail}</div>
+          <div class="tags" style="margin-top:6px">
+            ${e.proteins.split(', ').map(p => `<span class="badge badge-phospho">${p}</span>`).join('')}
+          </div>
+        </div>
+      `).join('')}
+    </div>
+  `).join('');
+}
+
+// ============ PTM LANDSCAPE ============
+function renderLandscape() {
+  const geneFilter = document.getElementById('landscapeGene').value;
+  const ptmFilter = document.getElementById('landscapePtm').value;
+  const search = document.getElementById('landscapeSearch').value.toLowerCase();
+
+  // Populate gene dropdown once
+  const sel = document.getElementById('landscapeGene');
+  if (sel.options.length <= 1) {
+    const genes = [...new Set(D.sites.map(s => s.gene))].sort();
+    genes.forEach(g => { const o = document.createElement('option'); o.value = g; o.textContent = g; sel.appendChild(o); });
+  }
+
+  let filtered = D.sites;
+  if (geneFilter !== 'all') filtered = filtered.filter(s => s.gene === geneFilter);
+  if (ptmFilter !== 'all') filtered = filtered.filter(s => s.ptmCat === ptmFilter);
+  if (search) filtered = filtered.filter(s => 
+    s.gene.toLowerCase().includes(search) || String(s.pos).includes(search) || (s.residue||'').toLowerCase().includes(search)
+  );
+
+  const tbody = document.querySelector('#landscapeTable tbody');
+  tbody.innerHTML = filtered.map(s => {
+    const badge = s.ptmCat === 'glycosylation' ? 'glyco' : s.ptmCat === 'phosphorylation' ? 'phospho' : 'acet';
+    const expCount = s.evidence.experimental || 0;
+    return `<tr>
+      <td><strong>${s.gene}</strong></td>
+      <td>${s.pos}</td>
+      <td>${s.residue || '-'}</td>
+      <td><span class="badge badge-${badge}">${s.subtype || s.ptmType}</span></td>
+      <td>${s.subtype && s.subtype !== s.ptmType ? s.ptmType : '-'}</td>
+      <td>${s.evidenceTotal} total</td>
+      <td>${expCount > 0 ? `<span class="badge badge-exp">${expCount} exp</span>` : '<span style="color:#666">0</span>'}</td>
+    </tr>`;
+  }).join('');
+}
+
+document.getElementById('landscapeGene').addEventListener('change', renderLandscape);
+document.getElementById('landscapePtm').addEventListener('change', renderLandscape);
+document.getElementById('landscapeSearch').addEventListener('input', renderLandscape);
+
+// ============ VARIANT-PTM OVERLAP ============
+let overlapCharts = {};
+function renderVariants() {
+  const geneFilter = document.getElementById('variantGene').value;
+  const distFilter = parseInt(document.getElementById('variantDist').value);
+
+  // Populate gene dropdown
+  const sel = document.getElementById('variantGene');
+  if (sel.options.length <= 1) {
+    const genes = [...new Set(D.variantPtmOverlaps.map(o => o.gene))].sort();
+    genes.forEach(g => { const o = document.createElement('option'); o.value = g; o.textContent = g; sel.appendChild(o); });
+  }
+
+  let filtered = D.variantPtmOverlaps;
+  if (geneFilter !== 'all') filtered = filtered.filter(o => o.gene === geneFilter);
+  filtered = filtered.filter(o => o.distance <= distFilter);
+
+  // Charts
+  const geneCounts = {};
+  filtered.forEach(o => geneCounts[o.gene] = (geneCounts[o.gene]||0) + 1);
+  const gSort = Object.entries(geneCounts).sort((a,b)=>b[1]-a[1]);
+
+  if (overlapCharts.gene) overlapCharts.gene.destroy();
+  overlapCharts.gene = new Chart(document.getElementById('chartOverlaps'), {
+    type: 'bar',
+    data: { labels: gSort.map(g=>g[0]), datasets: [{ data: gSort.map(g=>g[1]), backgroundColor: '#ef6c6c88', borderColor: '#ef6c6c', borderWidth:1 }] },
+    options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{x:{ticks:{color:'#9ca3b4'}},y:{ticks:{color:'#9ca3b4'},grid:{color:'#353849'}}} }
+  });
+
+  const distCounts = [0,0,0,0,0,0];
+  filtered.forEach(o => distCounts[o.distance]++);
+  if (overlapCharts.dist) overlapCharts.dist.destroy();
+  overlapCharts.dist = new Chart(document.getElementById('chartDistDist'), {
+    type: 'bar',
+    data: { labels: ['0 (direct)','1','2','3','4','5'], datasets: [{ data: distCounts, backgroundColor: '#efb86c88', borderColor: '#efb86c', borderWidth:1 }] },
+    options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{x:{ticks:{color:'#9ca3b4'}},y:{ticks:{color:'#9ca3b4'},grid:{color:'#353849'}}} }
+  });
+
+  // Table
+  const tbody = document.querySelector('#variantTable tbody');
+  tbody.innerHTML = filtered.slice(0,100).map(o => {
+    const impact = o.distance === 0 ? '<span class="badge badge-high">DIRECT</span>' : 
+                   o.distance <= 2 ? '<span class="badge badge-med">PROXIMAL</span>' :
+                   '<span class="badge badge-glyco">NEARBY</span>';
+    return `<tr>
+      <td><strong>${o.gene}</strong></td>
+      <td>${o.ref}${o.varPos}${o.alt}</td>
+      <td>${o.residue || ''}${o.ptmPos}</td>
+      <td>${o.ptmType}</td>
+      <td>${o.distance}</td>
+      <td>${impact}</td>
+    </tr>`;
+  }).join('');
+}
+
+document.getElementById('variantGene').addEventListener('change', renderVariants);
+document.getElementById('variantDist').addEventListener('change', renderVariants);
+
+// ============ LITERATURE INTEGRATION ============
+function renderLiterature() {
+  const articles = [
+    {
+      title: 'Wesseling et al. (Cell 2020) -- "Tau PTM Profiles Identify Patient Heterogeneity and Stages of AD"',
+      findings: [
+        { finding: '95 PTMs identified on tau across 49 AD + 42 control subjects', relevance: 'Provides the most comprehensive human tau PTM atlas to date. The GlyGen database contains glycosylation and phosphorylation data for the same proteins, enabling cross-validation.' },
+        { finding: '0N and 4R tau isoforms are enriched in pathological aggregates', relevance: 'Suggests therapeutic antibodies should target 0N4R-specific epitopes. GlyGen glycosylation data could reveal whether specific glycoforms are enriched on 0N vs 2N isoforms.' },
+        { finding: 'PTMs accumulate processively: PRR phosphorylation first, then MBD acetylation/ubiquitination', relevance: 'Defines a therapeutic window: early intervention should target PRR phosphorylation (kinase inhibitors), while late intervention needs to address MBD ubiquitination. GlyGen glycosylation data on tau maps to the same regions.' },
+        { finding: 'Ubiquitination at K311 and K317 are the top discriminating PTMs between AD and control', relevance: 'These sites are actionable drug targets. USP11 inhibition could preserve these protective ubiquitination marks. The GlyGen variant data shows nearby missense variants that could disrupt these sites.' },
+        { finding: 'A classifier using FLEXITau data predicts AD with >92% accuracy', relevance: 'Proof of concept that PTM signatures can be diagnostic. Integrating glycosylation data from GlyGen could improve classifier performance.' }
+      ]
+    },
+    {
+      title: 'Ngoie Zola et al. (Nat Commun 2023) -- "Specific PTMs of Soluble Tau Distinguishes AD and Primary Tauopathies"',
+      findings: [
+        { finding: 'Soluble tau PTMs differ between tauopathies even though isoform ratios do not', relevance: 'Key insight: PTMs in body fluids (CSF, plasma) can distinguish tauopathies where isoform ratios cannot. This justifies developing PTM-based biofluid assays.' },
+        { finding: 'Ub-K369 and Ub-K343 are 4R-tauopathy specific in soluble tau', relevance: 'First soluble biomarker candidates for CBD/PSP differential diagnosis. Could be validated in CSF using targeted mass spectrometry.' },
+        { finding: 'Ub-K311, Ub-K317, and Ub-K267+P-S262 are AD-specific in soluble tau', relevance: 'These are the most promising AD-specific biomarker candidates beyond P-T217. They could enable AD vs non-AD tauopathy distinction in a single CSF test.' },
+        { finding: 'PTM combinations differ between soluble and insoluble tau, suggesting protective roles', relevance: 'P-T212 (when paired with P-T217) and Ub-K267 (when paired with P-S262) appear protective against aggregation. These are potential therapeutic targets: enhancing protective PTMs rather than blocking pathological ones.' },
+        { finding: 'Ac-K311 is 3R-tauopathy specific', relevance: 'Combined with 4R markers, enables complete tauopathy subtyping. The GlyGen database provides the glycosylation context for interpreting these modifications in the broader PTM crosstalk network.' }
+      ]
+    }
+  ];
+
+  document.getElementById('litContent').innerHTML = articles.map(a => `
+    <div class="card" style="margin-bottom:20px">
+      <h3>${a.title}</h3>
+      <table>
+        <thead><tr><th style="width:40%">Key Finding</th><th>Translational Relevance & GlyGen Connection</th></tr></thead>
+        <tbody>
+          ${a.findings.map(f => `<tr><td>${f.finding}</td><td style="color:var(--text2)">${f.relevance}</td></tr>`).join('')}
+        </tbody>
+      </table>
+    </div>
+  `).join('');
+}
+
+// ============ INIT ============
+renderOverview();
+renderTargets();
+renderWetLab();
+renderLandscape();
+renderVariants();
+renderLiterature();
+</script>
+</body>
+</html>

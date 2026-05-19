@@ -1,0 +1,80 @@
+{
+  "_description": "CFDE-aligned ontology crosswalks for MoTrPAC PTM dashboard. Maps source-internal codes to standard vocabularies used by the CFDE Common Fund Data Ecosystem.",
+  "_version": "1.0.0",
+  "_last_updated": "2026-05-18",
+
+  "tissues": {
+    "_ontology": "UBERON (Uber-anatomy ontology)",
+    "_note": "MoTrPAC tissue codes mapped to UBERON terms. Source organism is rat (NCBITaxon:10116); UBERON terms are species-neutral.",
+    "CORTEX":  { "uberon_id": "UBERON:0001851", "label": "Cortex of cerebral lobe", "display": "Cortex" },
+    "HEART":   { "uberon_id": "UBERON:0000948", "label": "Heart",                   "display": "Heart" },
+    "KIDNEY":  { "uberon_id": "UBERON:0002113", "label": "Kidney",                  "display": "Kidney" },
+    "LIVER":   { "uberon_id": "UBERON:0002107", "label": "Liver",                   "display": "Liver" },
+    "LUNG":    { "uberon_id": "UBERON:0002048", "label": "Lung",                    "display": "Lung" },
+    "SKM-GN":  { "uberon_id": "UBERON:0001388", "label": "Gastrocnemius",           "display": "Gastrocnemius" },
+    "WAT-SC":  { "uberon_id": "UBERON:0002190", "label": "Subcutaneous adipose tissue", "display": "Subcutaneous WAT" }
+  },
+
+  "ptm_types": {
+    "_ontology": "PSI-MOD (Proteomics Standards Initiative - Protein Modifications Ontology)",
+    "_note": "MoTrPAC assay codes mapped to PSI-MOD terms.",
+    "PHOSPHO": { "mod_id": "MOD:00696", "label": "Phosphorylation",  "category": "phosphorylation" },
+    "ACETYL":  { "mod_id": "MOD:00394", "label": "Acetylation",      "category": "acetylation" },
+    "UBIQ":    { "mod_id": "MOD:01148", "label": "Ubiquitylation",   "category": "ubiquitylation" }
+  },
+
+  "organisms": {
+    "_ontology": "NCBITaxon",
+    "source": { "taxon_id": "NCBITaxon:10116", "label": "Rattus norvegicus", "common": "Brown rat" },
+    "target": { "taxon_id": "NCBITaxon:9606",  "label": "Homo sapiens",     "common": "Human" }
+  },
+
+  "identifiers": {
+    "_note": "Standard identifier namespaces used in the dashboard data.",
+    "proteins":  { "namespace": "UniProtKB", "url_pattern": "https://www.uniprot.org/uniprotkb/{id}" },
+    "genes":     { "namespace": "HGNC",      "url_pattern": "https://www.genenames.org/tools/search/#!/?query={id}" },
+    "diseases":  { "namespace": "DOID",      "url_pattern": "https://disease-ontology.org/term/{id}" }
+  },
+
+  "data_source": {
+    "name": "MoTrPAC (Molecular Transducers of Physical Activity Consortium)",
+    "cfde_program": "MoTrPAC",
+    "study": "Endurance exercise training in 6-month-old rats",
+    "publication_doi": "10.1038/s41586-023-06877-w",
+    "publication_citation": "MoTrPAC Study Group. Nature 629, 174-183 (2024)",
+    "data_package": "MotrpacRatTraining6moData",
+    "data_package_url": "https://github.com/MoTrPAC/MotrpacRatTraining6moData",
+    "data_portal": "https://motrpac-data.org",
+    "bioproject": "PRJNA908399",
+    "bioproject_url": "https://www.ncbi.nlm.nih.gov/bioproject/PRJNA908399",
+    "cfde_portal": "https://app.nih-cfde.org"
+  },
+
+  "provenance": {
+    "ortholog_mapping": "RAT_TO_HUMAN_GENE and RAT_TO_HUMAN_PHOSPHO tables from MotrpacRatTraining6moData R package",
+    "uniprot_resolution": "Human gene symbols resolved to reviewed Swiss-Prot accessions via UniProt REST API",
+    "statistical_model": "Timewise differential analysis: logFC = trained vs. sedentary at each time point, per tissue and sex",
+    "data_tables_used": [
+      "TRAINING_REGULATED_FEATURES.rda",
+      "FEATURE_TO_GENE_FILT.rda",
+      "RAT_TO_HUMAN_GENE.rda",
+      "RAT_TO_HUMAN_PHOSPHO.rda"
+    ],
+    "limitations": [
+      "Source R package fetched from main branch (no tagged releases available for version pinning)",
+      "Tissue-to-UBERON mappings added by this project, not provided by MoTrPAC source data",
+      "Ortholog mapping may miss proteins without clear one-to-one rat-to-human orthologs",
+      "Only training-regulated features (FDR < 0.05 in at least one comparison) are included"
+    ]
+  },
+
+  "cfde_c2m2_alignment": {
+    "_note": "How this dashboard's data model aligns with the CFDE Crosscut Metadata Model (C2M2).",
+    "protein_id":   "Maps to c2m2.protein.id_namespace = 'UniProtKB'",
+    "ptm_type":     "Maps to c2m2.ptm.modification_type using PSI-MOD terms",
+    "anatomy":      "Maps to c2m2.anatomy using UBERON terms",
+    "organism":     "Maps to c2m2.ncbi_taxonomy",
+    "disease":      "Maps to c2m2.disease using DOID terms (in linked database, not dashboard)",
+    "data_source":  "Maps to c2m2.dcc = 'MoTrPAC'"
+  }
+}

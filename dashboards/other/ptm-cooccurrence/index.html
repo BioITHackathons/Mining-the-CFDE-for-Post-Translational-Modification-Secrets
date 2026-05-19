@@ -1,0 +1,1051 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PTM Co-Occurrence Explorer</title>
+<script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+<style>
+:root {
+  --bg: #0f1117;
+  --surface: #181b24;
+  --surface2: #1e2230;
+  --border: #2a2e3d;
+  --text: #e1e4eb;
+  --text-dim: #8b8fa3;
+  --accent: #4f8cff;
+  --accent2: #7c5cff;
+  --glyco: #3ecf8e;
+  --phospho: #f59e42;
+  --cross: #e05cff;
+  --hover: #252a3a;
+  --danger: #ef4444;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.5;
+}
+
+.header {
+  background: linear-gradient(135deg, #1a1e2e, #0f1117);
+  border-bottom: 1px solid var(--border);
+  padding: 24px 32px;
+}
+.header h1 {
+  font-size: 22px;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+.header .subtitle {
+  color: var(--text-dim);
+  font-size: 13px;
+}
+
+.stats-row {
+  display: flex;
+  gap: 16px;
+  padding: 16px 32px;
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+.stat-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 20px;
+  min-width: 140px;
+}
+.stat-card .num {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--accent);
+}
+.stat-card .label {
+  font-size: 11px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.stat-card.cross .num { color: var(--cross); }
+.stat-card.glyco .num { color: var(--glyco); }
+.stat-card.phospho .num { color: var(--phospho); }
+
+.layout {
+  display: flex;
+  height: calc(100vh - 175px);
+}
+
+.sidebar {
+  width: 300px;
+  min-width: 300px;
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.main-content {
+  flex: 1;
+  overflow: auto;
+  padding: 0;
+}
+
+.tab-bar {
+  display: flex;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+.tab-bar button {
+  flex: 1;
+  padding: 10px 12px;
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: all 0.15s;
+}
+.tab-bar button.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+  background: var(--surface2);
+}
+.tab-bar button:hover:not(.active) {
+  color: var(--text);
+  background: var(--hover);
+}
+
+.sidebar-section {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.sidebar-section h3 {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-dim);
+  margin-bottom: 8px;
+}
+
+.filter-input {
+  width: 100%;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 12px;
+  color: var(--text);
+  font-size: 13px;
+  outline: none;
+}
+.filter-input:focus { border-color: var(--accent); }
+
+.list-container {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.list-item {
+  padding: 8px 16px;
+  cursor: pointer;
+  border-bottom: 1px solid rgba(42,46,61,0.5);
+  transition: background 0.1s;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.list-item:hover { background: var(--hover); }
+.list-item.active { background: var(--surface2); border-left: 3px solid var(--accent); }
+.list-item .name {
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 200px;
+}
+.list-item .count {
+  font-size: 11px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1px 8px;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+/* Tabs content */
+.tab-content { display: none; }
+.tab-content.active { display: block; }
+
+/* Heatmap */
+.heatmap-container {
+  padding: 24px;
+}
+.heatmap-controls {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 16px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.heatmap-controls select, .heatmap-controls button {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 12px;
+  color: var(--text);
+  font-size: 12px;
+  cursor: pointer;
+}
+.heatmap-controls button:hover { background: var(--hover); }
+.heatmap-controls button.active { border-color: var(--accent); color: var(--accent); }
+
+#heatmap-svg { width: 100%; }
+
+/* Cross-type pairs table */
+.table-container {
+  padding: 24px;
+}
+.pairs-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.pairs-table th {
+  position: sticky;
+  top: 0;
+  background: var(--surface);
+  border-bottom: 2px solid var(--border);
+  padding: 10px 12px;
+  text-align: left;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-dim);
+  z-index: 1;
+}
+.pairs-table td {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+.pairs-table tbody tr:hover { background: var(--hover); }
+
+.ptm-tag {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+}
+.ptm-tag.glyco { background: rgba(62,207,142,0.15); color: var(--glyco); }
+.ptm-tag.phospho { background: rgba(245,158,66,0.15); color: var(--phospho); }
+
+.distance-bar {
+  display: inline-block;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--accent);
+  min-width: 4px;
+}
+
+.pmid-link {
+  color: var(--accent);
+  text-decoration: none;
+  font-size: 11px;
+}
+.pmid-link:hover { text-decoration: underline; }
+
+/* Recurring pairs */
+.recurring-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 12px;
+}
+.recurring-card .pair-label {
+  font-weight: 600;
+  font-size: 14px;
+  margin-bottom: 6px;
+}
+.recurring-card .conditions-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+.condition-tag {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 12px;
+  font-size: 11px;
+  background: rgba(79,140,255,0.12);
+  color: var(--accent);
+  border: 1px solid rgba(79,140,255,0.25);
+}
+
+/* Chord diagram */
+#chord-svg { width: 100%; }
+
+/* Network view */
+#network-container {
+  width: 100%;
+  height: 600px;
+  position: relative;
+}
+
+/* Protein detail view */
+.protein-detail {
+  padding: 24px;
+}
+.protein-detail h2 {
+  font-size: 18px;
+  margin-bottom: 4px;
+}
+.protein-detail .uniprot {
+  color: var(--text-dim);
+  font-size: 13px;
+  margin-bottom: 16px;
+}
+.protein-detail .uniprot a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.protein-track {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+.protein-track h3 {
+  font-size: 13px;
+  margin-bottom: 12px;
+  color: var(--text-dim);
+}
+
+/* Sort controls */
+.sort-controls {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  margin-left: auto;
+}
+.sort-btn {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 3px;
+}
+.sort-btn:hover, .sort-btn.active { color: var(--accent); background: rgba(79,140,255,0.1); }
+
+/* Legend */
+.legend {
+  display: flex;
+  gap: 16px;
+  padding: 8px 0;
+  font-size: 12px;
+  align-items: center;
+}
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+/* Tooltip */
+.tooltip {
+  position: fixed;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 16px;
+  font-size: 12px;
+  pointer-events: none;
+  z-index: 100;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  max-width: 300px;
+  display: none;
+}
+.tooltip .tt-title { font-weight: 700; margin-bottom: 4px; }
+.tooltip .tt-row { color: var(--text-dim); }
+
+.empty-state {
+  text-align: center;
+  padding: 60px 24px;
+  color: var(--text-dim);
+}
+.empty-state h3 { font-size: 16px; margin-bottom: 8px; color: var(--text); }
+
+/* scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #3a3f52; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>PTM Co-Occurrence Explorer</h1>
+  <div class="subtitle">Identifying co-occurring post-translational modifications within disease contexts | Source: GlyGen via CFDE</div>
+</div>
+
+<div class="stats-row" id="stats-row"></div>
+
+<div class="layout">
+  <div class="sidebar">
+    <div class="sidebar-section">
+      <h3>Filter</h3>
+      <input class="filter-input" id="sidebar-search" placeholder="Search conditions or proteins...">
+    </div>
+    <div class="tab-bar" id="sidebar-tabs">
+      <button class="active" data-tab="conditions">Conditions</button>
+      <button data-tab="proteins">Proteins</button>
+    </div>
+    <div class="list-container" id="sidebar-list"></div>
+  </div>
+
+  <div class="main-content">
+    <div class="tab-bar" id="main-tabs">
+      <button class="active" data-tab="heatmap">Heatmap</button>
+      <button data-tab="crosstalk">Cross-Type Pairs</button>
+      <button data-tab="recurring">Recurring Pairs</button>
+      <button data-tab="network">PTM Network</button>
+    </div>
+    <div id="tab-heatmap" class="tab-content active"></div>
+    <div id="tab-crosstalk" class="tab-content"></div>
+    <div id="tab-recurring" class="tab-content"></div>
+    <div id="tab-network" class="tab-content"></div>
+  </div>
+</div>
+
+<div class="tooltip" id="tooltip"></div>
+
+<script>
+// Data will be loaded inline
+let DATA = null;
+let state = {
+  sidebarTab: 'conditions',
+  mainTab: 'heatmap',
+  selectedCondition: null,
+  selectedProtein: null,
+  search: '',
+  heatmapMode: 'cross' // 'all' or 'cross'
+};
+
+function init(data) {
+  DATA = data;
+  renderStats();
+  renderSidebar();
+  renderMainTabs();
+
+  document.getElementById('sidebar-search').addEventListener('input', e => {
+    state.search = e.target.value.toLowerCase();
+    renderSidebar();
+  });
+
+  document.querySelectorAll('#sidebar-tabs button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      state.sidebarTab = btn.dataset.tab;
+      state.selectedCondition = null;
+      state.selectedProtein = null;
+      document.querySelectorAll('#sidebar-tabs button').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      renderSidebar();
+      renderMainContent();
+    });
+  });
+
+  document.querySelectorAll('#main-tabs button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      state.mainTab = btn.dataset.tab;
+      document.querySelectorAll('#main-tabs button').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+      document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+      renderMainContent();
+    });
+  });
+
+  renderMainContent();
+}
+
+function renderStats() {
+  const s = DATA.summary;
+  const row = document.getElementById('stats-row');
+  row.innerHTML = `
+    <div class="stat-card"><div class="num">${s.total_co_occurrences.toLocaleString()}</div><div class="label">Total Co-occurrences</div></div>
+    <div class="stat-card cross"><div class="num">${s.total_cross_type.toLocaleString()}</div><div class="label">Cross-Type (Glyco+Phospho)</div></div>
+    <div class="stat-card"><div class="num">${s.unique_proteins}</div><div class="label">Proteins</div></div>
+    <div class="stat-card"><div class="num">${s.unique_conditions}</div><div class="label">Disease Conditions</div></div>
+    <div class="stat-card glyco"><div class="num">${DATA.cross_type_pairs.filter(p => p.type_a === 'Glycosylation').length}</div><div class="label">Glyco in Cross-Pairs</div></div>
+  `;
+}
+
+function renderSidebar() {
+  const list = document.getElementById('sidebar-list');
+  let html = '';
+
+  if (state.sidebarTab === 'conditions') {
+    const items = DATA.conditions.filter(c =>
+      !state.search || c.name.toLowerCase().includes(state.search)
+    );
+    for (const c of items) {
+      const active = state.selectedCondition === c.name ? 'active' : '';
+      html += `<div class="list-item ${active}" onclick="selectCondition('${c.name.replace(/'/g,"\\'")}')">
+        <span class="name" title="${c.name}">${c.name}</span>
+        <span class="count">${c.cross_pairs} cross / ${c.total_pairs}</span>
+      </div>`;
+    }
+  } else {
+    const prots = Object.entries(DATA.protein_info)
+      .map(([id, name]) => ({ id, name }))
+      .filter(p => !state.search || p.name.toLowerCase().includes(state.search) || p.id.toLowerCase().includes(state.search))
+      .sort((a, b) => {
+        const ca = DATA.matrix.filter(m => m.protein === a.id).reduce((s, m) => s + m.total, 0);
+        const cb = DATA.matrix.filter(m => m.protein === b.id).reduce((s, m) => s + m.total, 0);
+        return cb - ca;
+      });
+    for (const p of prots) {
+      const total = DATA.matrix.filter(m => m.protein === p.id).reduce((s, m) => s + m.total, 0);
+      const cross = DATA.matrix.filter(m => m.protein === p.id).reduce((s, m) => s + m.cross, 0);
+      const active = state.selectedProtein === p.id ? 'active' : '';
+      html += `<div class="list-item ${active}" onclick="selectProtein('${p.id}')">
+        <span class="name" title="${p.name}">${p.name}</span>
+        <span class="count">${cross} cross / ${total}</span>
+      </div>`;
+    }
+  }
+
+  if (!html) html = '<div class="empty-state">No results</div>';
+  list.innerHTML = html;
+}
+
+function selectCondition(name) {
+  state.selectedCondition = state.selectedCondition === name ? null : name;
+  state.selectedProtein = null;
+  renderSidebar();
+  renderMainContent();
+}
+
+function selectProtein(id) {
+  state.selectedProtein = state.selectedProtein === id ? null : id;
+  state.selectedCondition = null;
+  renderSidebar();
+  renderMainContent();
+}
+
+function renderMainContent() {
+  if (state.mainTab === 'heatmap') renderHeatmap();
+  else if (state.mainTab === 'crosstalk') renderCrosstalk();
+  else if (state.mainTab === 'recurring') renderRecurring();
+  else if (state.mainTab === 'network') renderNetwork();
+}
+
+function renderHeatmap() {
+  const container = document.getElementById('tab-heatmap');
+  
+  // Filter matrix data
+  let mdata = DATA.matrix;
+  if (state.selectedCondition) {
+    mdata = mdata.filter(m => m.condition === state.selectedCondition);
+  }
+  if (state.selectedProtein) {
+    mdata = mdata.filter(m => m.protein === state.selectedProtein);
+  }
+
+  // Get unique proteins and conditions
+  const proteins = [...new Set(mdata.map(m => m.protein))];
+  const conditions = [...new Set(mdata.map(m => m.condition))];
+
+  // Sort conditions by total co-occurrences
+  const condTotals = {};
+  mdata.forEach(m => { condTotals[m.condition] = (condTotals[m.condition] || 0) + m.cross; });
+  conditions.sort((a, b) => (condTotals[b] || 0) - (condTotals[a] || 0));
+
+  // Sort proteins by total co-occurrences
+  const protTotals = {};
+  mdata.forEach(m => { protTotals[m.protein] = (protTotals[m.protein] || 0) + m.cross; });
+  proteins.sort((a, b) => (protTotals[b] || 0) - (protTotals[a] || 0));
+
+  if (proteins.length === 0 || conditions.length === 0) {
+    container.innerHTML = '<div class="empty-state"><h3>No data</h3><p>Select a condition or protein from the sidebar, or clear filters.</p></div>';
+    return;
+  }
+
+  const margin = { top: 180, right: 40, bottom: 40, left: 220 };
+  const cellSize = Math.max(28, Math.min(50, (container.clientWidth - margin.left - margin.right) / conditions.length));
+  const width = margin.left + conditions.length * cellSize + margin.right;
+  const height = margin.top + proteins.length * cellSize + margin.bottom;
+
+  const maxVal = d3.max(mdata, d => d.cross) || 1;
+
+  const color = d3.scaleSequential()
+    .domain([0, maxVal])
+    .interpolator(d3.interpolateRgbBasis(['#1e2230', '#3a1f5c', '#7c3aed', '#e05cff']));
+
+  container.innerHTML = `
+    <div class="heatmap-container">
+      <div class="heatmap-controls">
+        <span style="font-size:13px;font-weight:600;">Cross-Type PTM Co-occurrences (Glycosylation + Phosphorylation)</span>
+        <div class="legend" style="margin-left:auto;">
+          <span style="font-size:11px;color:var(--text-dim)">Fewer</span>
+          <div style="width:100px;height:10px;border-radius:5px;background:linear-gradient(to right,#1e2230,#3a1f5c,#7c3aed,#e05cff);"></div>
+          <span style="font-size:11px;color:var(--text-dim)">More</span>
+        </div>
+      </div>
+      <div style="overflow-x:auto;">
+        <svg id="heatmap-svg" width="${width}" height="${height}"></svg>
+      </div>
+    </div>
+  `;
+
+  const svg = d3.select('#heatmap-svg');
+
+  const g = svg.append('g')
+    .attr('transform', `translate(${margin.left},${margin.top})`);
+
+  // Build lookup
+  const lookup = {};
+  mdata.forEach(m => { lookup[m.protein + '|' + m.condition] = m; });
+
+  // Cells
+  proteins.forEach((prot, pi) => {
+    conditions.forEach((cond, ci) => {
+      const d = lookup[prot + '|' + cond];
+      const val = d ? d.cross : 0;
+      if (val === 0) return;
+
+      g.append('rect')
+        .attr('x', ci * cellSize + 1)
+        .attr('y', pi * cellSize + 1)
+        .attr('width', cellSize - 2)
+        .attr('height', cellSize - 2)
+        .attr('rx', 3)
+        .attr('fill', color(val))
+        .attr('stroke', 'none')
+        .style('cursor', 'pointer')
+        .on('mouseenter', function(event) {
+          d3.select(this).attr('stroke', '#fff').attr('stroke-width', 1.5);
+          showTooltip(event,
+            `<div class="tt-title">${DATA.protein_info[prot] || prot}</div>
+             <div class="tt-row">${cond}</div>
+             <div class="tt-row" style="margin-top:4px">Cross-type pairs: <b style="color:var(--cross)">${val}</b></div>
+             <div class="tt-row">Total pairs: <b>${d ? d.total : 0}</b></div>`
+          );
+        })
+        .on('mouseleave', function() {
+          d3.select(this).attr('stroke', 'none');
+          hideTooltip();
+        })
+        .on('click', () => {
+          state.selectedCondition = cond;
+          state.selectedProtein = prot;
+          state.mainTab = 'crosstalk';
+          document.querySelectorAll('#main-tabs button').forEach(b => b.classList.remove('active'));
+          document.querySelector('#main-tabs button[data-tab="crosstalk"]').classList.add('active');
+          document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+          document.getElementById('tab-crosstalk').classList.add('active');
+          renderSidebar();
+          renderMainContent();
+        });
+
+      // Value label if cell is big enough
+      if (cellSize >= 35 && val > 0) {
+        g.append('text')
+          .attr('x', ci * cellSize + cellSize / 2)
+          .attr('y', pi * cellSize + cellSize / 2 + 1)
+          .attr('text-anchor', 'middle')
+          .attr('dominant-baseline', 'central')
+          .attr('fill', val > maxVal * 0.5 ? '#fff' : '#888')
+          .attr('font-size', 10)
+          .attr('font-weight', 600)
+          .attr('pointer-events', 'none')
+          .text(val);
+      }
+    });
+  });
+
+  // Y-axis labels (proteins)
+  proteins.forEach((prot, pi) => {
+    g.append('text')
+      .attr('x', -8)
+      .attr('y', pi * cellSize + cellSize / 2)
+      .attr('text-anchor', 'end')
+      .attr('dominant-baseline', 'central')
+      .attr('fill', state.selectedProtein === prot ? 'var(--accent)' : 'var(--text)')
+      .attr('font-size', 11)
+      .attr('font-weight', state.selectedProtein === prot ? 700 : 400)
+      .style('cursor', 'pointer')
+      .text((DATA.protein_info[prot] || prot).substring(0, 30))
+      .on('click', () => selectProtein(prot));
+  });
+
+  // X-axis labels (conditions)
+  conditions.forEach((cond, ci) => {
+    g.append('text')
+      .attr('transform', `translate(${ci * cellSize + cellSize / 2}, -8) rotate(-55)`)
+      .attr('text-anchor', 'end')
+      .attr('fill', state.selectedCondition === cond ? 'var(--accent)' : 'var(--text)')
+      .attr('font-size', 11)
+      .attr('font-weight', state.selectedCondition === cond ? 700 : 400)
+      .style('cursor', 'pointer')
+      .text(cond.length > 25 ? cond.substring(0, 23) + '...' : cond)
+      .on('click', () => {
+        state.sidebarTab = 'conditions';
+        document.querySelectorAll('#sidebar-tabs button').forEach(b => b.classList.remove('active'));
+        document.querySelector('#sidebar-tabs button[data-tab="conditions"]').classList.add('active');
+        selectCondition(cond);
+      });
+  });
+}
+
+function renderCrosstalk() {
+  const container = document.getElementById('tab-crosstalk');
+  
+  let pairs = DATA.cross_type_pairs;
+  if (state.selectedCondition) {
+    pairs = pairs.filter(p => p.condition === state.selectedCondition);
+  }
+  if (state.selectedProtein) {
+    pairs = pairs.filter(p => p.protein === state.selectedProtein);
+  }
+
+  // Sort by distance (proximal pairs are most interesting)
+  pairs.sort((a, b) => a.distance - b.distance);
+
+  const maxDist = d3.max(pairs, p => p.distance) || 1;
+
+  let title = 'Cross-Type PTM Pairs (Glycosylation + Phosphorylation)';
+  if (state.selectedCondition) title += ` in ${state.selectedCondition}`;
+  if (state.selectedProtein) title += ` on ${DATA.protein_info[state.selectedProtein] || state.selectedProtein}`;
+
+  let html = `<div class="table-container">
+    <h3 style="font-size:14px;margin-bottom:4px;">${title}</h3>
+    <p style="font-size:12px;color:var(--text-dim);margin-bottom:16px;">
+      ${pairs.length} pairs found. Pairs are sorted by sequence distance (proximal pairs first, suggesting potential crosstalk).
+    </p>
+    <table class="pairs-table">
+      <thead><tr>
+        <th>Protein</th>
+        <th>Condition</th>
+        <th>PTM Site A</th>
+        <th>PTM Site B</th>
+        <th>Distance (aa)</th>
+        <th>Shared Tissues</th>
+        <th>Evidence</th>
+      </tr></thead>
+      <tbody>`;
+
+  for (const p of pairs.slice(0, 500)) {
+    const typeA = p.type_a === 'Glycosylation' ? 'glyco' : 'phospho';
+    const typeB = p.type_b === 'Glycosylation' ? 'glyco' : 'phospho';
+    const distPct = Math.min(100, (p.distance / maxDist) * 100);
+    const subtypeA = p.subtype_a ? `<br><span style="font-size:10px;color:var(--text-dim)">${p.subtype_a}</span>` : '';
+    const subtypeB = p.subtype_b ? `<br><span style="font-size:10px;color:var(--text-dim)">${p.subtype_b}</span>` : '';
+
+    const evidenceLinks = [...new Set([...p.evidence_a, ...p.evidence_b].filter(Boolean))]
+      .slice(0, 3)
+      .map(pmid => `<a class="pmid-link" href="https://pubmed.ncbi.nlm.nih.gov/${pmid}" target="_blank">${pmid}</a>`)
+      .join(', ');
+
+    html += `<tr>
+      <td style="font-weight:600;white-space:nowrap;">${(DATA.protein_info[p.protein] || p.protein).split('(')[0].trim()}</td>
+      <td><span class="condition-tag">${p.condition}</span></td>
+      <td><span class="ptm-tag ${typeA}">${p.type_a.substring(0,5)}</span> ${p.site_a}${subtypeA}</td>
+      <td><span class="ptm-tag ${typeB}">${p.type_b.substring(0,5)}</span> ${p.site_b}${subtypeB}</td>
+      <td>
+        <span style="font-weight:600;${p.distance <= 20 ? 'color:var(--danger)' : ''}">${p.distance}</span>
+        <div class="distance-bar" style="width:${distPct}%;background:${p.distance <= 20 ? 'var(--danger)' : 'var(--accent)'}"></div>
+      </td>
+      <td style="font-size:11px;color:var(--text-dim)">${p.shared_tissues.slice(0, 3).join(', ') || '-'}</td>
+      <td>${evidenceLinks || '-'}</td>
+    </tr>`;
+  }
+
+  html += '</tbody></table>';
+  if (pairs.length > 500) {
+    html += `<p style="font-size:12px;color:var(--text-dim);margin-top:12px;">Showing first 500 of ${pairs.length} pairs.</p>`;
+  }
+  html += '</div>';
+
+  container.innerHTML = html;
+}
+
+function renderRecurring() {
+  const container = document.getElementById('tab-recurring');
+  
+  let pairs = DATA.recurring_pairs;
+  if (state.selectedProtein) {
+    pairs = pairs.filter(p => p.pair_key.startsWith(state.selectedProtein));
+  }
+  if (state.selectedCondition) {
+    pairs = pairs.filter(p => p.conditions.includes(state.selectedCondition));
+  }
+
+  // Separate cross-type and same-type
+  const crossPairs = pairs.filter(p => p.is_cross_type);
+  const samePairs = pairs.filter(p => !p.is_cross_type);
+
+  let html = `<div class="table-container">
+    <h3 style="font-size:14px;margin-bottom:4px;">PTM Pairs Recurring Across Multiple Conditions</h3>
+    <p style="font-size:12px;color:var(--text-dim);margin-bottom:16px;">
+      These PTM pairs appear together in 2+ disease states, suggesting conserved functional relevance.
+      ${crossPairs.length} cross-type pairs, ${samePairs.length} same-type pairs.
+    </p>`;
+
+  if (crossPairs.length > 0) {
+    html += `<h4 style="font-size:13px;margin-bottom:12px;color:var(--cross);">Cross-Type Pairs (Glycosylation + Phosphorylation)</h4>`;
+    for (const p of crossPairs.slice(0, 100)) {
+      const parts = p.pair_key.split('|');
+      const prot = parts[0];
+      const siteA = parts[1];
+      const siteB = parts[2];
+      html += `<div class="recurring-card">
+        <div class="pair-label">${DATA.protein_info[prot] || prot}</div>
+        <div style="font-size:13px;">
+          <span class="ptm-tag ${siteA.includes('Glyco') ? 'glyco' : 'phospho'}">${siteA.match(/\((\w+)/)?.[1]?.substring(0,5) || ''}</span>
+          ${siteA.split('(')[0]} 
+          <span style="color:var(--text-dim);margin:0 4px;">&harr;</span>
+          <span class="ptm-tag ${siteB.includes('Glyco') ? 'glyco' : 'phospho'}">${siteB.match(/\((\w+)/)?.[1]?.substring(0,5) || ''}</span>
+          ${siteB.split('(')[0]}
+        </div>
+        <div style="font-size:12px;color:var(--text-dim);margin-top:4px;">
+          Seen in <b style="color:var(--accent)">${p.condition_count}</b> disease contexts
+          ${p.shared_tissues.length > 0 ? '| Tissues: ' + p.shared_tissues.slice(0,4).join(', ') : ''}
+        </div>
+        <div class="conditions-list">
+          ${p.conditions.map(c => `<span class="condition-tag">${c}</span>`).join('')}
+        </div>
+      </div>`;
+    }
+  }
+
+  if (samePairs.length > 0) {
+    html += `<h4 style="font-size:13px;margin:24px 0 12px;color:var(--accent);">Same-Type Pairs (within Glycosylation or Phosphorylation)</h4>`;
+    for (const p of samePairs.slice(0, 50)) {
+      const parts = p.pair_key.split('|');
+      const prot = parts[0];
+      const siteA = parts[1];
+      const siteB = parts[2];
+      const isGlyco = siteA.includes('Glyco');
+      html += `<div class="recurring-card">
+        <div class="pair-label">${DATA.protein_info[prot] || prot}</div>
+        <div style="font-size:13px;">
+          <span class="ptm-tag ${isGlyco ? 'glyco' : 'phospho'}">${isGlyco ? 'Glyco' : 'Phos'}</span>
+          ${siteA.split('(')[0]} 
+          <span style="color:var(--text-dim);margin:0 4px;">&harr;</span>
+          <span class="ptm-tag ${isGlyco ? 'glyco' : 'phospho'}">${isGlyco ? 'Glyco' : 'Phos'}</span>
+          ${siteB.split('(')[0]}
+        </div>
+        <div style="font-size:12px;color:var(--text-dim);margin-top:4px;">
+          Seen in <b style="color:var(--accent)">${p.condition_count}</b> disease contexts
+        </div>
+        <div class="conditions-list">
+          ${p.conditions.map(c => `<span class="condition-tag">${c}</span>`).join('')}
+        </div>
+      </div>`;
+    }
+  }
+
+  if (pairs.length === 0) {
+    html += '<div class="empty-state"><h3>No recurring pairs</h3><p>Try clearing filters.</p></div>';
+  }
+
+  html += '</div>';
+  container.innerHTML = html;
+}
+
+function renderNetwork() {
+  const container = document.getElementById('tab-network');
+  
+  // Build a network: nodes = PTM sites, edges = co-occurrence in a disease
+  // Filter by selected condition or protein
+  let pairs = DATA.cross_type_pairs;
+  if (state.selectedCondition) {
+    pairs = pairs.filter(p => p.condition === state.selectedCondition);
+  }
+  if (state.selectedProtein) {
+    pairs = pairs.filter(p => p.protein === state.selectedProtein);
+  }
+
+  if (pairs.length === 0) {
+    container.innerHTML = '<div class="empty-state"><h3>No cross-type pairs</h3><p>Select a condition or protein with cross-type co-occurrences.</p></div>';
+    return;
+  }
+
+  // Aggregate edges: unique site pairs, weighted by condition count
+  const edgeMap = {};
+  const nodeSet = {};
+  
+  for (const p of pairs) {
+    const aKey = `${p.protein}:${p.site_a}`;
+    const bKey = `${p.protein}:${p.site_b}`;
+    
+    nodeSet[aKey] = { id: aKey, label: `${p.site_a}`, protein: p.protein, displayName: p.display_name, type: p.type_a, pos: p.pos_a };
+    nodeSet[bKey] = { id: bKey, label: `${p.site_b}`, protein: p.protein, displayName: p.display_name, type: p.type_b, pos: p.pos_b };
+    
+    const eKey = aKey < bKey ? `${aKey}|${bKey}` : `${bKey}|${aKey}`;
+    if (!edgeMap[eKey]) {
+      edgeMap[eKey] = { source: aKey, target: bKey, conditions: new Set(), weight: 0 };
+    }
+    edgeMap[eKey].conditions.add(p.condition);
+    edgeMap[eKey].weight++;
+  }
+
+  const nodes = Object.values(nodeSet);
+  const edges = Object.values(edgeMap).map(e => ({
+    ...e, conditions: [...e.conditions]
+  }));
+
+  // Limit for performance
+  if (nodes.length > 200) {
+    // Keep top edges by weight
+    edges.sort((a, b) => b.weight - a.weight);
+    const topEdges = edges.slice(0, 150);
+    const keepNodes = new Set();
+    topEdges.forEach(e => { keepNodes.add(e.source); keepNodes.add(e.target); });
+    const filteredNodes = nodes.filter(n => keepNodes.has(n.id));
+    renderNetworkSVG(container, filteredNodes, topEdges);
+  } else {
+    renderNetworkSVG(container, nodes, edges);
+  }
+}
+
+function renderNetworkSVG(container, nodes, edges) {
+  const width = container.clientWidth || 900;
+  const height = 600;
+
+  container.innerHTML = `
+    <div style="padding:16px 24px 8px;">
+      <h3 style="font-size:14px;margin-bottom:4px;">PTM Co-Occurrence Network</h3>
+      <p style="font-size:12px;color:var(--text-dim);margin-bottom:8px;">
+        Nodes = PTM sites colored by type. Edges connect sites co-occurring in disease contexts. Edge thickness = number of shared conditions.
+      </p>
+      <div class="legend">
+        <div class="legend-item"><div class="legend-dot" style="background:var(--glyco)"></div>Glycosylation</div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--phospho)"></div>Phosphorylation</div>
+      </div>
+    </div>
+    <svg id="network-svg" width="${width}" height="${height}"></svg>
+  `;
+
+  const svg = d3.select('#network-svg');
+  const g = svg.append('g');
+
+  // Zoom
+  svg.call(d3.zoom().scaleExtent([0.2, 4]).on('zoom', e => {
+    g.attr('transform', e.transform);
+  }));
+
+  const maxWeight = d3.max(edges, e => e.weight) || 1;
+
+  const simulation = d3.forceSimulation(nodes)
+    .force('link', d3.forceLink(edges).id(d => d.id).distance(60))
+    .force('charge', d3.forceManyBody().strength(-100))
+    .force('center', d3.forceCenter(width / 2, height / 2))
+    .force('collision', d3.forceCollide(18));
+
+  const link = g.append('g')
+    .selectAll('line')
+    .data(edges)
+    .enter().append('line')
+    .attr('stroke', 'rgba(224,92,255,0.3)')
+    .attr('stroke-width', d => Math.max(1, (d.weight / maxWeight) * 5));
+
+  const node = g.append('g')
+    .selectAll('circle')
+    .data(nodes)
+    .enter().append('circle')
+    .attr('r', 8)
+    .attr('fill', d => d.type === 'Glycosylation' ? 'var(--glyco)' : 'var(--phospho)')
+    .attr('stroke', '#111')
+    .attr('stroke-width', 1)
+    .style('cursor', 'pointer')
+    .call(d3.drag()
+      .on('start', (e, d) => { if (!e.active) simulation.alphaTarget(0.3).restart(); d.fx = d.x; d.fy = d.y; })
+      .on('drag', (e, d) => { d.fx = e.x; d.fy = e.y; })
+      .on('end', (e, d) => { if (!e.active) simulation.alphaTarget(0); d.fx = null; d.fy = null; })
+    );
+
+  node.on('mouseenter', (event, d) => {
+    const connEdges = edges.filter(e => e.source.id === d.id || e.target.id === d.id);
+    const connConds = [...new Set(connEdges.flatMap(e => e.conditions))];
+    showTooltip(event,
+      `<div class="tt-title">${d.displayName}</div>
+       <div class="tt-row">${d.label} (${d.type})</div>
+       <div class="tt-row">Position: ${d.pos}</div>
+       <div class="tt-row" style="margin-top:4px">Connected pairs: ${connEdges.length}</div>
+       <div class="tt-row">Conditions: ${connConds.slice(0,5).join(', ')}${connConds.length > 5 ? '...' : ''}</div>`
+    );
+  }).on('mouseleave', hideTooltip);
+
+  const label = g.append('g')
+    .selectAll('text')
+    .data(nodes)
+    .enter().append('text')
+    .attr('font-size', 9)
+    .attr('fill', 'var(--text-dim)')
+    .attr('dx', 12)
+    .attr('dy', 3)
+    .text(d => d.label);
+
+  simulation.on('tick', () => {
+    link
+      .attr('x1', d => d.source.x)
+      .attr('y1', d => d.source.y)
+      .attr('x2', d => d.target.x)
+      .attr('y2', d => d.target.y);
+    node
+      .attr('cx', d => d.x)
+      .attr('cy', d => d.y);
+    label
+      .attr('x', d => d.x)
+      .attr('y', d => d.y);
+  });
+}
+
+function showTooltip(event, html) {
+  const tt = document.getElementById('tooltip');
+  tt.innerHTML = html;
+  tt.style.display = 'block';
+  const x = event.clientX + 12;
+  const y = event.clientY + 12;
+  tt.style.left = Math.min(x, window.innerWidth - 320) + 'px';
+  tt.style.top = Math.min(y, window.innerHeight - 200) + 'px';
+}
+
+function hideTooltip() {
+  document.getElementById('tooltip').style.display = 'none';
+}
+
+// Load data
+fetch('cooccurrence_data.json')
+  .then(r => r.json())
+  .then(init)
+  .catch(() => {
+    // Fallback: try inline
+    if (typeof INLINE_DATA !== 'undefined') init(INLINE_DATA);
+    else document.body.innerHTML = '<div style="padding:40px;color:#fff;">Error loading data. Ensure cooccurrence_data.json is in the same directory.</div>';
+  });
+</script>
+</body>
+</html>

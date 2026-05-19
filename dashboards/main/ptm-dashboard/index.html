@@ -1,0 +1,1765 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CFDE/GlyGen PTM Disease-Tissue Explorer</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#0f1117;--card:#1a1d27;--card2:#232738;--border:#2d3148;--text:#e2e4ed;--dim:#8b90a5;--accent:#6c8cff;--accent2:#5ee8b7;--accent3:#f59e42;--danger:#ff6b6b;--tag-bg:#23283a}
+body{font-family:'Inter',system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);line-height:1.5;min-height:100vh}
+a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
+.container{max-width:1440px;margin:0 auto;padding:16px}
+header{padding:20px 0;border-bottom:1px solid var(--border);margin-bottom:20px}
+header h1{font-size:1.5rem;font-weight:700;color:var(--text)}
+header .subtitle{font-size:.85rem;color:var(--dim);margin-top:4px}
+header .badges{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
+.badge{font-size:.7rem;padding:2px 8px;border-radius:10px;font-weight:600}
+.badge-blue{background:#1e3a5f;color:#6cb4ee}
+.badge-green{background:#1a3d2e;color:var(--accent2)}
+.badge-orange{background:#3d2e1a;color:var(--accent3)}
+
+/* Summary cards */
+.summary-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:20px}
+.stat-card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px;text-align:center}
+.stat-card .num{font-size:1.6rem;font-weight:700;color:var(--accent)}
+.stat-card .label{font-size:.75rem;color:var(--dim);margin-top:2px}
+
+/* Tabs */
+.tabs{display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:16px;overflow-x:auto}
+.tab{padding:10px 20px;cursor:pointer;font-size:.85rem;font-weight:600;color:var(--dim);border-bottom:2px solid transparent;margin-bottom:-2px;white-space:nowrap;transition:all .2s}
+.tab:hover{color:var(--text)}
+.tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+.tab-content{display:none}.tab-content.active{display:block}
+
+/* Filters */
+.filter-bar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;align-items:center}
+.filter-bar select,.filter-bar input{background:var(--card2);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:6px 10px;font-size:.8rem;min-width:160px}
+.filter-bar select:focus,.filter-bar input:focus{outline:none;border-color:var(--accent)}
+.filter-label{font-size:.75rem;color:var(--dim);font-weight:600;text-transform:uppercase;letter-spacing:.5px}
+
+/* Table */
+.table-wrap{overflow-x:auto;border:1px solid var(--border);border-radius:10px;background:var(--card)}
+table{width:100%;border-collapse:collapse;font-size:.8rem}
+th{background:var(--card2);padding:10px 12px;text-align:left;font-weight:600;color:var(--dim);text-transform:uppercase;font-size:.7rem;letter-spacing:.5px;position:sticky;top:0;z-index:1}
+td{padding:8px 12px;border-top:1px solid var(--border);vertical-align:top;max-width:400px}
+tr:hover td{background:rgba(108,140,255,.05)}
+.tag{display:inline-block;padding:1px 6px;border-radius:4px;font-size:.7rem;margin:1px 2px;font-weight:500}
+.tag-disease{background:#2d1a1a;color:#ff9b9b}
+.tag-tissue{background:#1a2d1a;color:#9bffb5}
+.tag-ptm{background:#1a1a2d;color:#9bb5ff}
+.tag-up{background:#1a3d1a;color:#5ee8b7}
+.tag-down{background:#3d1a1a;color:#ff6b6b}
+.tag-unknown{background:var(--tag-bg);color:var(--dim)}
+.tag-glycoeffect{background:#2d2a1a;color:var(--accent3)}
+
+/* Protein cards view */
+.protein-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px}
+.protein-card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px;transition:border-color .2s;cursor:pointer}
+.protein-card:hover{border-color:var(--accent)}
+.protein-card h3{font-size:.95rem;font-weight:700;margin-bottom:4px}
+.protein-card .meta{font-size:.75rem;color:var(--dim)}
+.protein-card .counts{display:flex;gap:12px;margin-top:8px;flex-wrap:wrap}
+.protein-card .count-item{font-size:.75rem}.count-item span{font-weight:700;color:var(--accent)}
+.protein-card .disease-tags{margin-top:8px;display:flex;flex-wrap:wrap;gap:3px}
+
+/* Detail modal */
+.modal-overlay{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.7);z-index:100;overflow-y:auto;padding:20px}
+.modal-overlay.active{display:flex;justify-content:center;align-items:flex-start}
+.modal{background:var(--bg);border:1px solid var(--border);border-radius:12px;max-width:1100px;width:100%;padding:24px;position:relative;margin:40px auto}
+.modal-close{position:absolute;top:12px;right:16px;font-size:1.4rem;cursor:pointer;color:var(--dim);background:none;border:none}
+.modal-close:hover{color:var(--text)}
+.modal h2{font-size:1.2rem;margin-bottom:4px}
+.modal .section{margin-top:16px}
+.modal .section h4{font-size:.85rem;color:var(--accent);margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px}
+
+/* Charts area */
+.chart-row{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px}
+.chart-box{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px}
+.chart-box h4{font-size:.8rem;color:var(--dim);margin-bottom:12px;text-transform:uppercase;letter-spacing:.5px}
+.bar-chart{display:flex;flex-direction:column;gap:4px}
+.bar-row{display:flex;align-items:center;gap:8px}
+.bar-label{font-size:.72rem;width:140px;text-align:right;color:var(--dim);flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bar{height:18px;border-radius:3px;min-width:2px;transition:width .4s ease}
+.bar-value{font-size:.7rem;color:var(--dim);min-width:30px}
+
+/* Annotation sentence */
+.ann-sentence{font-size:.78rem;color:var(--text);line-height:1.5;padding:8px 10px;background:var(--card2);border-radius:6px;margin-bottom:6px;border-left:3px solid var(--accent)}
+.ann-sentence .pmid{font-size:.7rem;color:var(--accent);margin-left:6px}
+
+/* Loading */
+.loading{text-align:center;padding:60px;color:var(--dim);font-size:.9rem}
+
+@media(max-width:768px){
+  .chart-row{grid-template-columns:1fr}
+  .filter-bar{flex-direction:column;align-items:stretch}
+  .filter-bar select,.filter-bar input{min-width:100%}
+}
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>CFDE / GlyGen PTM Disease-Tissue Explorer</h1>
+    <div class="subtitle">Site-specific glycosylation and PTM annotations linked to disease and tissue context, extracted from GlyGen (CFDE DCC) curated annotations</div>
+    <div class="badges">
+      <span class="badge badge-blue">CFDE Integrated</span>
+      <span class="badge badge-green">GlyGen API</span>
+      <span class="badge badge-orange">NLP-Extracted Annotations</span>
+    </div>
+  </header>
+
+  <div class="summary-row" id="summaryRow"></div>
+
+  <div class="tabs" id="mainTabs">
+    <div class="tab active" data-tab="trackView">PTM Track Viewer</div>
+    <div class="tab" data-tab="enrichment">Pathway / GO Enrichment</div>
+    <div class="tab" data-tab="condChanges">PTM Changes by Condition</div>
+    <div class="tab" data-tab="siteEvidence">Site Evidence</div>
+    <div class="tab" data-tab="overview">Overview</div>
+    <div class="tab" data-tab="annotations">Curated Annotations</div>
+    <div class="tab" data-tab="pqtl">Variant-PTM Overlap</div>
+    <div class="tab" data-tab="snv">SNV &amp; Glycoeffects</div>
+    <div class="tab" data-tab="sites">Glycosylation Sites</div>
+    <div class="tab" data-tab="proteins">Protein Cards</div>
+  </div>
+
+  <!-- PTM TRACK VIEWER -->
+  <div class="tab-content active" id="tab-trackView">
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:16px">
+      <div style="font-size:.85rem;font-weight:600;color:var(--accent);margin-bottom:4px">Protein PTM Track Viewer</div>
+      <div style="font-size:.78rem;color:var(--dim)">Select a protein and condition to compare PTM landscape between disease and healthy/reference. Lollipop plots show PTM sites along the protein sequence. Sites are colored by evidence of change in the selected condition.</div>
+    </div>
+    <div class="filter-bar" style="background:var(--card);padding:12px;border-radius:10px;border:1px solid var(--border);margin-bottom:12px">
+      <div><div class="filter-label">Protein</div><select id="tvProtein" style="min-width:240px"></select></div>
+      <div><div class="filter-label">Condition A (Disease)</div><select id="tvCondA" style="min-width:200px;border-color:var(--danger)"><option value="">Select protein first</option></select></div>
+      <div><div class="filter-label">Condition B (Healthy / Other)</div><select id="tvCondB" style="min-width:200px;border-color:var(--accent2)"><option value="">Healthy baseline (score=0)</option></select></div>
+      <div><div class="filter-label">PTM Filter</div><select id="tvPtmFilter"><option value="">All PTMs</option><option value="Glycosylation">Glycosylation only</option><option value="Phosphorylation">Phosphorylation only</option></select></div>
+      <div><div class="filter-label">Species / Model</div><select id="tvSpecies"><option value="">All Species</option><option value="Human">Human</option><option value="Mouse">Mouse</option><option value="Rat">Rat</option><option value="In vivo">In vivo</option><option value="In vitro">In vitro</option></select></div>
+      <div style="display:flex;align-items:flex-end"><button id="tvRender" style="background:var(--accent);color:#fff;border:none;border-radius:6px;padding:8px 18px;font-size:.8rem;font-weight:600;cursor:pointer">Compare Conditions</button></div>
+    </div>
+    <div style="font-size:.72rem;color:var(--dim);margin-bottom:8px">
+      <strong>How scores work:</strong> Each literature report of a PTM increase = +1 (curated = +2). Decrease = -1 (curated = -2). Explicit fold-changes from papers are used when available. The score is the net evidence: positive means more evidence of increase, negative means decrease. Comparing two conditions shows the difference (A minus B).
+    </div>
+
+    <div id="tvInfo" style="font-size:.78rem;color:var(--dim);margin-bottom:8px;display:none"></div>
+
+    <!-- Track SVG container -->
+    <div id="tvContainer" style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:20px;min-height:200px;overflow-x:auto">
+      <div style="text-align:center;color:var(--dim);padding:40px;font-size:.85rem">Select a protein and condition above, then click "Render Tracks"</div>
+    </div>
+
+    <!-- Tooltip -->
+    <div id="tvTooltip" style="display:none;position:fixed;background:var(--card2);border:1px solid var(--border);border-radius:8px;padding:10px 14px;font-size:.75rem;max-width:350px;z-index:200;pointer-events:none;box-shadow:0 4px 20px rgba(0,0,0,.5)"></div>
+
+    <!-- Legend -->
+    <div style="margin-top:12px;display:flex;gap:16px;flex-wrap:wrap;font-size:.72rem;color:var(--dim)">
+      <div style="font-weight:600;color:var(--dim)">PTM Sites (circles):</div>
+      <div><span style="display:inline-block;width:12px;height:12px;background:#f59e42;border-radius:50%;vertical-align:middle"></span> Glycosylation</div>
+      <div><span style="display:inline-block;width:12px;height:12px;background:#c084fc;border-radius:50%;vertical-align:middle"></span> Phosphorylation</div>
+      <div><span style="display:inline-block;width:12px;height:12px;background:#5ee8b7;border-radius:2px;vertical-align:middle"></span> Up in disease</div>
+      <div><span style="display:inline-block;width:12px;height:12px;background:#ff6b6b;border-radius:2px;vertical-align:middle"></span> Down in disease</div>
+      <div style="font-weight:600;color:var(--dim);margin-left:8px">Variants (diamonds):</div>
+      <div><span style="display:inline-block;width:10px;height:10px;background:#ff6b6b;transform:rotate(45deg);vertical-align:middle"></span> Disease + on PTM</div>
+      <div><span style="display:inline-block;width:10px;height:10px;background:#f59e42;transform:rotate(45deg);vertical-align:middle"></span> Glycoeffect + on PTM</div>
+      <div><span style="display:inline-block;width:10px;height:10px;background:#6c8cff;transform:rotate(45deg);vertical-align:middle"></span> On PTM site</div>
+      <div><span style="display:inline-block;width:10px;height:10px;background:#4a5080;transform:rotate(45deg);vertical-align:middle"></span> Near PTM site</div>
+    </div>
+
+    <!-- Site details panel -->
+    <div id="tvSiteDetail" style="display:none;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px;margin-top:12px">
+    </div>
+  </div>
+
+  <!-- PATHWAY / GO ENRICHMENT -->
+  <div class="tab-content" id="tab-enrichment">
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:16px">
+      <div style="font-size:.85rem;font-weight:600;color:var(--accent);margin-bottom:4px">Pathway &amp; GO Term Enrichment Analysis</div>
+      <div style="font-size:.78rem;color:var(--dim)">For each disease condition, proteins with PTM changes are tested for enrichment of GO terms and pathways (Fisher's exact test) against the full 30-protein background set. Select a condition to see which biological functions and pathways are overrepresented among PTM-affected proteins.</div>
+    </div>
+    <div class="filter-bar">
+      <div><div class="filter-label">Condition</div><select id="enrCondition" style="min-width:240px"><option value="">-- Select Condition --</option></select></div>
+      <div><div class="filter-label">View</div><select id="enrView"><option value="pathway">Pathways</option><option value="go_bp">GO Biological Process</option><option value="go_mf">GO Molecular Function</option><option value="go_cc">GO Cellular Component</option><option value="go_all">GO All</option></select></div>
+      <div><div class="filter-label">P-value cutoff</div><select id="enrPval"><option value="1">All</option><option value="0.05" selected>p &lt; 0.05</option><option value="0.1">p &lt; 0.1</option><option value="0.25">p &lt; 0.25</option></select></div>
+      <div><div class="filter-label">Species / Model</div><select id="enrSpecies"><option value="">All Species</option><option value="Human">Human</option><option value="Mouse">Mouse</option><option value="Rat">Rat</option><option value="In vivo">In vivo</option><option value="In vitro">In vitro</option></select></div>
+    </div>
+
+    <div id="enrSummary" style="margin-bottom:12px"></div>
+
+    <!-- Affected proteins for this condition -->
+    <div id="enrProteins" style="margin-bottom:16px"></div>
+
+    <!-- Enrichment results -->
+    <div id="enrResults"></div>
+  </div>
+
+  <!-- CONDITION CHANGES -->
+  <div class="tab-content" id="tab-condChanges">
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:16px">
+      <div style="font-size:.85rem;font-weight:600;color:var(--accent);margin-bottom:6px">Site-Specific PTM Changes by Condition</div>
+      <div style="font-size:.78rem;color:var(--dim)">Each row shows a PTM change (up/down) at a specific site in a specific disease or condition, extracted from PubMed evidence papers and GlyGen curated annotations. Curated hits (from UniProtKB annotations) are marked high confidence; abstract-mined hits are medium confidence.</div>
+    </div>
+    <div class="summary-row" id="ccSummary"></div>
+    <div class="chart-row">
+      <div class="chart-box">
+        <h4>Conditions with Most PTM Changes</h4>
+        <div class="bar-chart" id="ccChartConditions"></div>
+      </div>
+      <div class="chart-box">
+        <h4>Up vs Down by Condition (Top 15)</h4>
+        <div id="ccChartUpDown" style="overflow-y:auto;max-height:320px"></div>
+      </div>
+    </div>
+    <div class="chart-row">
+      <div class="chart-box">
+        <h4>Proteins with Most Condition-Linked Changes</h4>
+        <div class="bar-chart" id="ccChartProteins"></div>
+      </div>
+      <div class="chart-box">
+        <h4>PTM Types in Condition Changes</h4>
+        <div class="bar-chart" id="ccChartPtmTypes"></div>
+      </div>
+    </div>
+    <div class="filter-bar">
+      <div><div class="filter-label">Protein</div><select id="ccFilterProtein"><option value="">All Proteins</option></select></div>
+      <div><div class="filter-label">Condition</div><select id="ccFilterCondition"><option value="">All Conditions</option></select></div>
+      <div><div class="filter-label">Direction</div><select id="ccFilterDir"><option value="">Any</option><option value="up">Up / Increased</option><option value="down">Down / Decreased</option></select></div>
+      <div><div class="filter-label">PTM Type</div><select id="ccFilterPtm"><option value="">All PTMs</option></select></div>
+      <div><div class="filter-label">Confidence</div><select id="ccFilterConf"><option value="">All</option><option value="high">High (curated)</option><option value="medium">Medium (abstract)</option></select></div>
+      <div><div class="filter-label">Species / Model</div><select id="ccFilterSpecies"><option value="">All Species</option><option value="Human">Human</option><option value="Mouse">Mouse</option><option value="Rat">Rat</option><option value="In vivo">In vivo</option><option value="In vitro">In vitro</option></select></div>
+      <div><div class="filter-label">Search</div><input id="ccSearch" type="text" placeholder="Search..."></div>
+    </div>
+    <div id="ccCount" style="font-size:.75rem;color:var(--dim);margin-bottom:8px"></div>
+    <div class="table-wrap" style="max-height:550px;overflow-y:auto"><table>
+      <thead><tr>
+        <th>Protein</th>
+        <th>Site(s)</th>
+        <th>PTM Type</th>
+        <th>Direction</th>
+        <th>Condition</th>
+        <th>Tissue</th>
+        <th>Quantitative</th>
+        <th>Confidence</th>
+        <th>Evidence Sentence</th>
+        <th>PMID</th>
+      </tr></thead>
+      <tbody id="ccTableBody"></tbody>
+    </table></div>
+  </div>
+
+  <!-- SITE EVIDENCE -->
+  <div class="tab-content" id="tab-siteEvidence">
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:16px">
+      <div style="font-size:.85rem;font-weight:600;color:var(--accent);margin-bottom:6px">Per-Site PTM Evidence with Disease &amp; Tissue Context</div>
+      <div style="font-size:.78rem;color:var(--dim)">Each row = one protein site + PTM type. Conditions and tissues are mined from the PubMed abstracts linked as evidence for that site in GlyGen. 474 abstracts mined across 30 proteins.</div>
+    </div>
+    <div class="summary-row" id="siteEvSummary"></div>
+    <div class="filter-bar">
+      <div><div class="filter-label">Protein</div><select id="seFilterProtein"><option value="">All Proteins</option></select></div>
+      <div><div class="filter-label">PTM Type</div><select id="seFilterPtm"><option value="">All</option><option value="Glycosylation">Glycosylation</option><option value="Phosphorylation">Phosphorylation</option></select></div>
+      <div><div class="filter-label">Glyco Type</div><select id="seFilterGlycoType"><option value="">All</option><option value="N-linked">N-linked</option><option value="O-linked">O-linked</option></select></div>
+      <div><div class="filter-label">Condition</div><select id="seFilterCondition"><option value="">All Conditions</option></select></div>
+      <div><div class="filter-label">Tissue</div><select id="seFilterTissue"><option value="">All Tissues</option></select></div>
+      <div><div class="filter-label">Method</div><select id="seFilterMethod"><option value="">All Methods</option></select></div>
+      <div><div class="filter-label">Species / Model</div><select id="seFilterSpecies"><option value="">All Species</option><option value="Human">Human</option><option value="Mouse">Mouse</option><option value="Rat">Rat</option><option value="In vivo">In vivo</option><option value="In vitro">In vitro</option></select></div>
+      <div><div class="filter-label">Search</div><input id="seSearch" type="text" placeholder="Search sites..."></div>
+    </div>
+    <div id="seCount" style="font-size:.75rem;color:var(--dim);margin-bottom:8px"></div>
+    <div class="table-wrap" style="max-height:650px;overflow-y:auto"><table>
+      <thead><tr>
+        <th style="cursor:pointer" data-sort="protein">Protein</th>
+        <th style="cursor:pointer" data-sort="site">Site</th>
+        <th>Residue</th>
+        <th style="cursor:pointer" data-sort="ptm">PTM</th>
+        <th>Subtype</th>
+        <th>GlyTouCan</th>
+        <th>Conditions (from evidence)</th>
+        <th>Tissues (from evidence)</th>
+        <th>Methods</th>
+        <th>Evidence</th>
+      </tr></thead>
+      <tbody id="seTableBody"></tbody>
+    </table></div>
+  </div>
+
+  <!-- OVERVIEW -->
+  <div class="tab-content" id="tab-overview">
+    <div class="chart-row">
+      <div class="chart-box">
+        <h4>Top Proteins by Glycosylation Sites</h4>
+        <div class="bar-chart" id="chartGlycoProteins"></div>
+      </div>
+      <div class="chart-box">
+        <h4>Top Proteins by Disease Associations</h4>
+        <div class="bar-chart" id="chartDiseaseProteins"></div>
+      </div>
+    </div>
+    <div class="chart-row">
+      <div class="chart-box">
+        <h4>PTM Types in Extracted Annotations</h4>
+        <div class="bar-chart" id="chartPtmTypes"></div>
+      </div>
+      <div class="chart-box">
+        <h4>Diseases Mentioned in PTM Annotations</h4>
+        <div class="bar-chart" id="chartDiseaseMentions"></div>
+      </div>
+    </div>
+    <div class="chart-row">
+      <div class="chart-box">
+        <h4>Tissues/Cell Types in PTM Annotations</h4>
+        <div class="bar-chart" id="chartTissueMentions"></div>
+      </div>
+      <div class="chart-box">
+        <h4>Direction of PTM Changes (Disease Context)</h4>
+        <div class="bar-chart" id="chartDirections"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- EXTRACTED ANNOTATIONS -->
+  <div class="tab-content" id="tab-annotations">
+    <div class="filter-bar">
+      <div><div class="filter-label">Protein</div><select id="annFilterProtein"><option value="">All Proteins</option></select></div>
+      <div><div class="filter-label">Disease</div><select id="annFilterDisease"><option value="">All Diseases</option></select></div>
+      <div><div class="filter-label">Tissue</div><select id="annFilterTissue"><option value="">All Tissues</option></select></div>
+      <div><div class="filter-label">PTM Type</div><select id="annFilterPtm"><option value="">All PTM Types</option></select></div>
+      <div><div class="filter-label">Direction</div><select id="annFilterDirection"><option value="">Any</option><option value="up">Up</option><option value="down">Down</option><option value="unknown">Unknown</option></select></div>
+      <div><div class="filter-label">Search</div><input id="annSearch" type="text" placeholder="Free text search..."></div>
+    </div>
+    <div id="annCount" style="font-size:.75rem;color:var(--dim);margin-bottom:8px"></div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Protein</th><th>Sites</th><th>PTM Types</th><th>Diseases</th><th>Tissues</th><th>Direction</th><th>Annotation</th><th>PMIDs</th></tr></thead>
+      <tbody id="annTableBody"></tbody>
+    </table></div>
+  </div>
+
+  <!-- SNV & GLYCOEFFECTS -->
+  <!-- VARIANT-PTM OVERLAP (pQTL-like) -->
+  <div class="tab-content" id="tab-pqtl">
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:16px">
+      <div style="font-size:.85rem;font-weight:600;color:var(--accent);margin-bottom:4px">Variant-PTM Site Overlap (pQTL-like Analysis)</div>
+      <div style="font-size:.78rem;color:var(--dim)">Genetic variants from GlyGen's SNV data that fall directly on or within &plusmn;5 residues of a known PTM site. Disease-associated variants at PTM sites suggest the variant may exert its effect by disrupting or altering post-translational modification. Data sourced from GlyGen (BioMuta, dbSNP, gnomAD, COSMIC).</div>
+    </div>
+    <div class="summary-row" id="pqSummary"></div>
+    <div class="chart-row">
+      <div class="chart-box">
+        <h4>Proteins with Most Variant-PTM Overlaps</h4>
+        <div class="bar-chart" id="pqChartProteins"></div>
+      </div>
+      <div class="chart-box">
+        <h4>Diseases Linked to Variants at PTM Sites</h4>
+        <div class="bar-chart" id="pqChartDiseases"></div>
+      </div>
+    </div>
+    <div class="filter-bar">
+      <div><div class="filter-label">Protein</div><select id="pqFilterProtein"><option value="">All</option></select></div>
+      <div><div class="filter-label">Overlap Type</div><select id="pqFilterOverlap"><option value="">All</option><option value="direct">Direct (on PTM site)</option><option value="proximal">Proximal (&plusmn;5 residues)</option></select></div>
+      <div><div class="filter-label">Disease-Associated</div><select id="pqFilterDisease"><option value="">All</option><option value="yes">Disease-associated only</option><option value="no">Non-disease only</option></select></div>
+      <div><div class="filter-label">Glycoeffect</div><select id="pqFilterGlyco"><option value="">All</option><option value="yes">Has glycoeffect</option></select></div>
+      <div><div class="filter-label">Variant Type</div><select id="pqFilterType"><option value="">All</option><option value="somatic">Somatic</option><option value="germline">Germline</option></select></div>
+      <div><div class="filter-label">Search</div><input id="pqSearch" type="text" placeholder="Search..."></div>
+    </div>
+    <div id="pqCount" style="font-size:.75rem;color:var(--dim);margin-bottom:8px"></div>
+    <div class="table-wrap" style="max-height:550px;overflow-y:auto"><table>
+      <thead><tr>
+        <th>Protein</th>
+        <th>Variant</th>
+        <th>Mutation</th>
+        <th>Overlap</th>
+        <th>Distance</th>
+        <th>PTM Site(s)</th>
+        <th>PTM Type</th>
+        <th>Glycoeffect</th>
+        <th>Disease</th>
+        <th>Type</th>
+        <th>dbSNP</th>
+      </tr></thead>
+      <tbody id="pqTableBody"></tbody>
+    </table></div>
+  </div>
+
+  <div class="tab-content" id="tab-snv">
+    <div class="filter-bar">
+      <div><div class="filter-label">Protein</div><select id="snvFilterProtein"><option value="">All Proteins</option></select></div>
+      <div><div class="filter-label">Glycoeffect</div><select id="snvFilterEffect"><option value="">All Effects</option></select></div>
+      <div><div class="filter-label">Disease</div><select id="snvFilterDisease"><option value="">All Diseases</option></select></div>
+      <div><div class="filter-label">Search</div><input id="snvSearch" type="text" placeholder="Search..."></div>
+    </div>
+    <div id="snvCount" style="font-size:.75rem;color:var(--dim);margin-bottom:8px"></div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Protein</th><th>Site</th><th>Mutation</th><th>Glycoeffect</th><th>Disease</th><th>Type</th><th>Comment</th></tr></thead>
+      <tbody id="snvTableBody"></tbody>
+    </table></div>
+  </div>
+
+  <!-- GLYCOSYLATION SITES -->
+  <div class="tab-content" id="tab-sites">
+    <div class="filter-bar">
+      <div><div class="filter-label">Protein</div><select id="siteFilterProtein"><option value="">All Proteins</option></select></div>
+      <div><div class="filter-label">Type</div><select id="siteFilterType"><option value="">All Types</option><option value="N-linked">N-linked</option><option value="O-linked">O-linked</option></select></div>
+      <div><div class="filter-label">Category</div><select id="siteFilterCategory"><option value="">All</option><option value="reported_with_glycan">Reported + Glycan</option><option value="reported">Reported</option><option value="predicted">Predicted</option></select></div>
+      <div><div class="filter-label">Search</div><input id="siteSearch" type="text" placeholder="Search..."></div>
+    </div>
+    <div id="siteCount" style="font-size:.75rem;color:var(--dim);margin-bottom:8px"></div>
+    <div class="table-wrap" style="max-height:600px;overflow-y:auto"><table>
+      <thead><tr><th>Protein</th><th>Site</th><th>Residue</th><th>Type</th><th>Subtype</th><th>GlyTouCan</th><th>Category</th><th>Evidence</th></tr></thead>
+      <tbody id="siteTableBody"></tbody>
+    </table></div>
+  </div>
+
+  <!-- PROTEIN CARDS -->
+  <div class="tab-content" id="tab-proteins">
+    <div class="protein-grid" id="proteinGrid"></div>
+  </div>
+</div>
+
+<!-- MODAL -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal" id="modalContent">
+    <button class="modal-close" id="modalClose">&times;</button>
+    <div id="modalBody"></div>
+  </div>
+</div>
+
+<script>
+let DATA = null;
+let SITES = null;
+let QUANT = null;
+let TRACKS = null;
+let ENRICH = null;
+let PQTL = null;
+
+async function loadData() {
+  var cb = '?v=' + Date.now();
+  var responses = await Promise.all([
+    fetch('data.json' + cb),
+    fetch('sites.json' + cb),
+    fetch('quantitative.json' + cb),
+    fetch('tracks.json' + cb),
+    fetch('enrichment.json' + cb),
+    fetch('pqtl.json' + cb),
+  ]);
+  DATA = await responses[0].json();
+  SITES = await responses[1].json();
+  QUANT = await responses[2].json();
+  TRACKS = await responses[3].json();
+  ENRICH = await responses[4].json();
+  PQTL = await responses[5].json();
+  init();
+}
+
+function init() {
+  renderSummary();
+  initTrackViewer();
+  initEnrichment();
+  initPqtl();
+  renderCondChanges();
+  renderSiteEvidence();
+  renderOverviewCharts();
+  populateFilters();
+  populateSiteEvidenceFilters();
+  populateCondFilters();
+  renderAnnotations();
+  renderSnv();
+  renderSites();
+  renderProteinCards();
+  setupTabs();
+  setupFilters();
+  setupSiteEvidenceFilters();
+  setupCondFilters();
+  setupModal();
+}
+
+function renderSummary() {
+  const s = DATA.summary;
+  const items = [
+    { num: s.total_proteins, label: 'Proteins' },
+    { num: s.total_glyco_sites.toLocaleString(), label: 'Glyco Sites' },
+    { num: s.total_phospho_sites, label: 'Phospho Sites' },
+    { num: s.total_diseases, label: 'Diseases' },
+    { num: s.total_extracted_annotations, label: 'NLP Annotations' },
+    { num: s.total_snv_disease_links.toLocaleString(), label: 'SNV-Disease Links' },
+  ];
+  document.getElementById('summaryRow').innerHTML = items.map(i =>
+    `<div class="stat-card"><div class="num">${i.num}</div><div class="label">${i.label}</div></div>`
+  ).join('');
+}
+
+function makeBar(label, value, max, color) {
+  const pct = max > 0 ? (value / max * 100) : 0;
+  return `<div class="bar-row"><div class="bar-label" title="${label}">${label}</div><div class="bar" style="width:${Math.max(pct, 1)}%;background:${color}"></div><div class="bar-value">${value}</div></div>`;
+}
+
+function renderOverviewCharts() {
+  // Glyco sites per protein (top 12)
+  const sorted = [...DATA.proteins].sort((a, b) => b.glycosylation_count - a.glycosylation_count).slice(0, 12);
+  const maxG = sorted[0]?.glycosylation_count || 1;
+  document.getElementById('chartGlycoProteins').innerHTML = sorted.map(p =>
+    makeBar(p.display_name.split('(')[0].trim(), p.glycosylation_count, maxG, 'var(--accent)')
+  ).join('');
+
+  // Disease associations (top 12)
+  const sortedD = [...DATA.proteins].sort((a, b) => b.diseases.length - a.diseases.length).slice(0, 12);
+  const maxD = sortedD[0]?.diseases.length || 1;
+  document.getElementById('chartDiseaseProteins').innerHTML = sortedD.map(p =>
+    makeBar(p.display_name.split('(')[0].trim(), p.diseases.length, maxD, 'var(--danger)')
+  ).join('');
+
+  // PTM types from extracted annotations
+  const ptmCounts = {};
+  DATA.proteins.forEach(p => p.ptm_annotations_extracted.forEach(a => a.ptm_types.forEach(t => { ptmCounts[t] = (ptmCounts[t] || 0) + 1; })));
+  const ptmSorted = Object.entries(ptmCounts).sort((a, b) => b[1] - a[1]).slice(0, 12);
+  const maxP = ptmSorted[0]?.[1] || 1;
+  document.getElementById('chartPtmTypes').innerHTML = ptmSorted.map(([k, v]) =>
+    makeBar(k, v, maxP, 'var(--accent2)')
+  ).join('');
+
+  // Diseases from annotations
+  const disCounts = {};
+  DATA.proteins.forEach(p => p.ptm_annotations_extracted.forEach(a => a.diseases.forEach(d => { disCounts[d] = (disCounts[d] || 0) + 1; })));
+  const disSorted = Object.entries(disCounts).sort((a, b) => b[1] - a[1]).slice(0, 12);
+  const maxDis = disSorted[0]?.[1] || 1;
+  document.getElementById('chartDiseaseMentions').innerHTML = disSorted.map(([k, v]) =>
+    makeBar(k, v, maxDis, '#ff9b9b')
+  ).join('');
+
+  // Tissues from annotations
+  const tisCounts = {};
+  DATA.proteins.forEach(p => p.ptm_annotations_extracted.forEach(a => a.tissues.forEach(t => { tisCounts[t] = (tisCounts[t] || 0) + 1; })));
+  const tisSorted = Object.entries(tisCounts).sort((a, b) => b[1] - a[1]).slice(0, 12);
+  const maxTis = tisSorted[0]?.[1] || 1;
+  document.getElementById('chartTissueMentions').innerHTML = tisSorted.map(([k, v]) =>
+    makeBar(k, v, maxTis, '#9bffb5')
+  ).join('');
+
+  // Direction
+  const dirCounts = { up: 0, down: 0, unknown: 0 };
+  DATA.proteins.forEach(p => p.ptm_annotations_extracted.forEach(a => { dirCounts[a.direction] = (dirCounts[a.direction] || 0) + 1; }));
+  const maxDir = Math.max(...Object.values(dirCounts), 1);
+  const dirColors = { up: 'var(--accent2)', down: 'var(--danger)', unknown: 'var(--dim)' };
+  document.getElementById('chartDirections').innerHTML = Object.entries(dirCounts).map(([k, v]) =>
+    makeBar(k.charAt(0).toUpperCase() + k.slice(1), v, maxDir, dirColors[k])
+  ).join('');
+}
+
+function populateFilters() {
+  const proteinNames = DATA.proteins.map(p => p.display_name).sort();
+  const diseases = new Set();
+  const tissues = new Set();
+  const ptmTypes = new Set();
+  const glycoeffects = new Set();
+  const snvDiseases = new Set();
+
+  DATA.proteins.forEach(p => {
+    p.ptm_annotations_extracted.forEach(a => {
+      a.diseases.forEach(d => diseases.add(d));
+      a.tissues.forEach(t => tissues.add(t));
+      a.ptm_types.forEach(t => ptmTypes.add(t));
+    });
+    p.snv_with_disease_or_glycoeffect.forEach(s => {
+      s.glycoeffect.forEach(e => glycoeffects.add(e));
+      s.diseases.forEach(d => snvDiseases.add(d.name));
+    });
+  });
+
+  const fillSelect = (id, items) => {
+    const sel = document.getElementById(id);
+    [...items].sort().forEach(i => { const o = document.createElement('option'); o.value = i; o.textContent = i; sel.appendChild(o); });
+  };
+
+  ['annFilterProtein', 'snvFilterProtein', 'siteFilterProtein'].forEach(id => fillSelect(id, proteinNames));
+  fillSelect('annFilterDisease', diseases);
+  fillSelect('annFilterTissue', tissues);
+  fillSelect('annFilterPtm', ptmTypes);
+  fillSelect('snvFilterEffect', glycoeffects);
+  fillSelect('snvFilterDisease', snvDiseases);
+}
+
+function tags(items, cls) {
+  return items.map(i => `<span class="tag ${cls}">${i}</span>`).join('');
+}
+
+function renderAnnotations() {
+  const fp = document.getElementById('annFilterProtein').value;
+  const fd = document.getElementById('annFilterDisease').value;
+  const ft = document.getElementById('annFilterTissue').value;
+  const fptm = document.getElementById('annFilterPtm').value;
+  const fdir = document.getElementById('annFilterDirection').value;
+  const fsearch = document.getElementById('annSearch').value.toLowerCase();
+
+  let rows = [];
+  DATA.proteins.forEach(p => {
+    if (fp && p.display_name !== fp) return;
+    p.ptm_annotations_extracted.forEach(a => {
+      if (fd && !a.diseases.includes(fd)) return;
+      if (ft && !a.tissues.includes(ft)) return;
+      if (fptm && !a.ptm_types.includes(fptm)) return;
+      if (fdir && a.direction !== fdir) return;
+      if (fsearch && !a.sentence.toLowerCase().includes(fsearch)) return;
+      rows.push({ protein: p.display_name, uniprot: p.uniprot_ac, ...a });
+    });
+  });
+
+  document.getElementById('annCount').textContent = `${rows.length} annotations found`;
+
+  const dirCls = { up: 'tag-up', down: 'tag-down', unknown: 'tag-unknown' };
+  document.getElementById('annTableBody').innerHTML = rows.map(r => `<tr>
+    <td><a href="https://www.glygen.org/protein/${r.uniprot}" target="_blank">${r.protein}</a></td>
+    <td>${tags(r.sites, 'tag-ptm')}</td>
+    <td>${tags(r.ptm_types, 'tag-ptm')}</td>
+    <td>${tags(r.diseases, 'tag-disease')}</td>
+    <td>${tags(r.tissues, 'tag-tissue')}</td>
+    <td><span class="tag ${dirCls[r.direction] || 'tag-unknown'}">${r.direction}</span></td>
+    <td style="font-size:.75rem;max-width:350px">${r.sentence}</td>
+    <td>${r.pmids.map(id => `<a href="https://pubmed.ncbi.nlm.nih.gov/${id}" target="_blank" class="pmid">${id}</a>`).join(' ')}</td>
+  </tr>`).join('');
+}
+
+function renderSnv() {
+  const fp = document.getElementById('snvFilterProtein').value;
+  const fe = document.getElementById('snvFilterEffect').value;
+  const fd = document.getElementById('snvFilterDisease').value;
+  const fs = document.getElementById('snvSearch').value.toLowerCase();
+
+  let rows = [];
+  DATA.proteins.forEach(p => {
+    if (fp && p.display_name !== fp) return;
+    p.snv_with_disease_or_glycoeffect.forEach(s => {
+      if (fe && !s.glycoeffect.includes(fe)) return;
+      if (fd && !s.diseases.some(d => d.name === fd)) return;
+      if (fs && !JSON.stringify(s).toLowerCase().includes(fs)) return;
+      rows.push({ protein: p.display_name, uniprot: p.uniprot_ac, ...s });
+    });
+  });
+
+  document.getElementById('snvCount').textContent = `${rows.length} SNV entries found`;
+  document.getElementById('snvTableBody').innerHTML = rows.slice(0, 500).map(r => `<tr>
+    <td><a href="https://www.glygen.org/protein/${r.uniprot}" target="_blank">${r.protein}</a></td>
+    <td>${r.site_lbl}</td>
+    <td>${r.sequence_org} &rarr; ${r.sequence_mut}</td>
+    <td>${tags(r.glycoeffect, 'tag-glycoeffect')}</td>
+    <td>${tags(r.diseases.map(d => d.name), 'tag-disease')}</td>
+    <td>${tags(r.keywords, 'tag-ptm')}</td>
+    <td style="font-size:.72rem;max-width:300px">${r.comment}</td>
+  </tr>`).join('');
+}
+
+function renderSites() {
+  const fp = document.getElementById('siteFilterProtein').value;
+  const ftype = document.getElementById('siteFilterType').value;
+  const fcat = document.getElementById('siteFilterCategory').value;
+  const fs = document.getElementById('siteSearch').value.toLowerCase();
+
+  let rows = [];
+  DATA.proteins.forEach(p => {
+    if (fp && p.display_name !== fp) return;
+    p.glycosylation_sites.forEach(s => {
+      if (ftype && s.type !== ftype) return;
+      if (fcat && s.category !== fcat) return;
+      if (fs && !JSON.stringify(s).toLowerCase().includes(fs)) return;
+      rows.push({ protein: p.display_name, uniprot: p.uniprot_ac, ...s });
+    });
+  });
+
+  document.getElementById('siteCount').textContent = `${rows.length} glycosylation entries (showing first 500)`;
+  document.getElementById('siteTableBody').innerHTML = rows.slice(0, 500).map(r => `<tr>
+    <td><a href="https://www.glygen.org/protein/${r.uniprot}" target="_blank">${r.protein}</a></td>
+    <td>${r.site_lbl || r.start_pos}</td>
+    <td>${r.residue || ''}</td>
+    <td>${r.type}</td>
+    <td>${r.subtype || '-'}</td>
+    <td>${r.glytoucan_ac ? `<a href="https://glytoucan.org/Structures/Glycans/${r.glytoucan_ac}" target="_blank">${r.glytoucan_ac}</a>` : '-'}</td>
+    <td>${r.category}</td>
+    <td>${r.evidence_count}</td>
+  </tr>`).join('');
+}
+
+function renderProteinCards() {
+  const grid = document.getElementById('proteinGrid');
+  grid.innerHTML = DATA.proteins.map(p => `
+    <div class="protein-card" data-ac="${p.uniprot_ac}">
+      <h3>${p.display_name}</h3>
+      <div class="meta">${p.uniprot_ac} &middot; ${p.protein_name} &middot; ${p.length} aa</div>
+      <div class="counts">
+        <div class="count-item">Glyco: <span>${p.glycosylation_count}</span></div>
+        <div class="count-item">Phospho: <span>${p.phosphorylation_count}</span></div>
+        <div class="count-item">Diseases: <span>${p.diseases.length}</span></div>
+        <div class="count-item">NLP Ann: <span>${p.ptm_annotations_extracted.length}</span></div>
+        <div class="count-item">SNV: <span>${p.snv_with_disease_or_glycoeffect.length}</span></div>
+        <div class="count-item">Pubs: <span>${p.publication_count}</span></div>
+      </div>
+      <div class="disease-tags">${p.diseases.slice(0, 6).map(d => `<span class="tag tag-disease">${d.name}</span>`).join('')}${p.diseases.length > 6 ? `<span class="tag tag-unknown">+${p.diseases.length - 6}</span>` : ''}</div>
+    </div>
+  `).join('');
+}
+
+function setupTabs() {
+  document.querySelectorAll('.tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+      tab.classList.add('active');
+      document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
+    });
+  });
+}
+
+function setupFilters() {
+  ['annFilterProtein','annFilterDisease','annFilterTissue','annFilterPtm','annFilterDirection'].forEach(id =>
+    document.getElementById(id).addEventListener('change', renderAnnotations));
+  document.getElementById('annSearch').addEventListener('input', debounce(renderAnnotations, 300));
+
+  ['snvFilterProtein','snvFilterEffect','snvFilterDisease'].forEach(id =>
+    document.getElementById(id).addEventListener('change', renderSnv));
+  document.getElementById('snvSearch').addEventListener('input', debounce(renderSnv, 300));
+
+  ['siteFilterProtein','siteFilterType','siteFilterCategory'].forEach(id =>
+    document.getElementById(id).addEventListener('change', renderSites));
+  document.getElementById('siteSearch').addEventListener('input', debounce(renderSites, 300));
+}
+
+function debounce(fn, ms) { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; }
+
+function setupModal() {
+  const overlay = document.getElementById('modalOverlay');
+  document.getElementById('modalClose').addEventListener('click', () => overlay.classList.remove('active'));
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.classList.remove('active'); });
+
+  document.getElementById('proteinGrid').addEventListener('click', e => {
+    const card = e.target.closest('.protein-card');
+    if (!card) return;
+    const ac = card.dataset.ac;
+    const p = DATA.proteins.find(x => x.uniprot_ac === ac);
+    if (!p) return;
+    showProteinModal(p);
+  });
+}
+
+function showProteinModal(p) {
+  const body = document.getElementById('modalBody');
+  const dirCls = { up: 'tag-up', down: 'tag-down', unknown: 'tag-unknown' };
+  body.innerHTML = `
+    <h2>${p.display_name}</h2>
+    <div style="font-size:.8rem;color:var(--dim);margin-bottom:12px">${p.uniprot_ac} &middot; ${p.protein_name} &middot; ${p.species} &middot; ${p.length} aa
+      &middot; <a href="https://www.glygen.org/protein/${p.uniprot_ac}" target="_blank">GlyGen</a>
+      &middot; <a href="https://www.uniprot.org/uniprotkb/${p.uniprot_ac}" target="_blank">UniProt</a>
+    </div>
+
+    <div class="section">
+      <h4>Disease Associations (${p.diseases.length})</h4>
+      <div style="display:flex;flex-wrap:wrap;gap:4px">${p.diseases.map(d => `<span class="tag tag-disease" title="${d.description}">${d.name}</span>`).join('')}</div>
+    </div>
+
+    <div class="section">
+      <h4>Tissue Expression</h4>
+      <div style="display:flex;flex-wrap:wrap;gap:4px">${p.expression_tissue.map(t => `<span class="tag tag-tissue">${t.tissue_name} (${t.present}, ${t.score})</span>`).join('')}</div>
+    </div>
+
+    <div class="section">
+      <h4>Expression in Disease</h4>
+      ${p.expression_disease.length ? p.expression_disease.map(ed => `<div style="font-size:.78rem;margin:2px 0"><span class="tag ${ed.trend === 'up' ? 'tag-up' : 'tag-down'}">${ed.trend}</span> ${ed.disease_name} ${ed.significant === 'Yes' ? '<span class="tag tag-ptm">significant</span>' : ''}</div>`).join('') : '<div style="font-size:.78rem;color:var(--dim)">No expression-disease data</div>'}
+    </div>
+
+    <div class="section">
+      <h4>NLP-Extracted PTM Annotations (${p.ptm_annotations_extracted.length})</h4>
+      ${p.ptm_annotations_extracted.map(a => `
+        <div class="ann-sentence">
+          ${a.sentence}
+          <div style="margin-top:4px">
+            ${tags(a.sites, 'tag-ptm')}
+            ${tags(a.ptm_types, 'tag-ptm')}
+            ${tags(a.diseases, 'tag-disease')}
+            ${tags(a.tissues, 'tag-tissue')}
+            <span class="tag ${dirCls[a.direction] || 'tag-unknown'}">${a.direction}</span>
+            ${a.pmids.map(id => `<a href="https://pubmed.ncbi.nlm.nih.gov/${id}" target="_blank" style="font-size:.7rem">[PMID:${id}]</a>`).join(' ')}
+          </div>
+        </div>
+      `).join('')}
+      ${p.ptm_annotations_extracted.length === 0 ? '<div style="font-size:.78rem;color:var(--dim)">No extracted annotations</div>' : ''}
+    </div>
+
+    <div class="section">
+      <h4>Raw PTM Annotations (from UniProtKB via GlyGen)</h4>
+      ${p.ptm_annotations_raw.map(t => `<div style="font-size:.78rem;padding:6px;background:var(--card2);border-radius:4px;margin-bottom:4px">${t}</div>`).join('')}
+    </div>
+
+    <div class="section">
+      <h4>Glycosylation Sites (${p.glycosylation_count})</h4>
+      ${p.glycosylation_count > 0 ? `<div class="table-wrap" style="max-height:300px;overflow-y:auto"><table>
+        <thead><tr><th>Site</th><th>Type</th><th>GlyTouCan</th><th>Category</th></tr></thead>
+        <tbody>${p.glycosylation_sites.slice(0, 50).map(s => `<tr><td>${s.site_lbl || s.start_pos}</td><td>${s.type}</td><td>${s.glytoucan_ac || '-'}</td><td>${s.category}</td></tr>`).join('')}</tbody>
+      </table></div>` : '<div style="font-size:.78rem;color:var(--dim)">None</div>'}
+    </div>
+
+    <div class="section">
+      <h4>Phosphorylation Sites (${p.phosphorylation_count})</h4>
+      ${p.phosphorylation_count > 0 ? `<div class="table-wrap"><table>
+        <thead><tr><th>Site</th><th>Residue</th><th>Comment</th></tr></thead>
+        <tbody>${p.phosphorylation_sites.map(s => `<tr><td>${s.site_lbl}</td><td>${s.residue}</td><td style="font-size:.72rem">${s.comment}</td></tr>`).join('')}</tbody>
+      </table></div>` : '<div style="font-size:.78rem;color:var(--dim)">None</div>'}
+    </div>
+  `;
+  document.getElementById('modalOverlay').classList.add('active');
+}
+
+// === VARIANT-PTM OVERLAP (pQTL) ===
+function initPqtl() {
+  if (!PQTL) return;
+  var s = PQTL.summary;
+  document.getElementById('pqSummary').innerHTML = [
+    {num: s.total_snv_ptm_overlaps, label: 'Total Overlaps'},
+    {num: s.direct_overlaps, label: 'Direct (on site)'},
+    {num: s.proximal_overlaps, label: 'Proximal (±5 aa)'},
+    {num: s.disease_associated, label: 'Disease-Associated'},
+    {num: s.with_glycoeffect, label: 'With Glycoeffect'},
+    {num: s.unique_diseases, label: 'Diseases'},
+  ].map(function(i){return '<div class="stat-card"><div class="num">'+i.num+'</div><div class="label">'+i.label+'</div></div>';}).join('');
+
+  // Charts
+  var protCounts = {};
+  PQTL.overlaps.forEach(function(o){protCounts[o.gene_name || o.protein_name.split('(')[0].trim()] = (protCounts[o.gene_name || o.protein_name.split('(')[0].trim()] || 0) + 1;});
+  var protSorted = Object.entries(protCounts).sort(function(a,b){return b[1]-a[1];}).slice(0,15);
+  var maxP = protSorted[0] ? protSorted[0][1] : 1;
+  document.getElementById('pqChartProteins').innerHTML = protSorted.map(function(e){return makeBar(e[0],e[1],maxP,'var(--accent)');}).join('');
+
+  var disCounts = {};
+  PQTL.overlaps.forEach(function(o){o.diseases.forEach(function(d){disCounts[d.name]=(disCounts[d.name]||0)+1;});});
+  var disSorted = Object.entries(disCounts).sort(function(a,b){return b[1]-a[1];}).slice(0,15);
+  var maxD = disSorted[0] ? disSorted[0][1] : 1;
+  document.getElementById('pqChartDiseases').innerHTML = disSorted.map(function(e){return makeBar(e[0],e[1],maxD,'#ff9b9b');}).join('');
+
+  // Populate protein filter
+  var prots = new Set();
+  PQTL.overlaps.forEach(function(o){prots.add(o.protein_name);});
+  var sel = document.getElementById('pqFilterProtein');
+  Array.from(prots).sort().forEach(function(p){var o=document.createElement('option');o.value=p;o.textContent=p;sel.appendChild(o);});
+
+  // Wire filters
+  ['pqFilterProtein','pqFilterOverlap','pqFilterDisease','pqFilterGlyco','pqFilterType'].forEach(function(id){
+    document.getElementById(id).onchange = renderPqtlTable;
+  });
+  document.getElementById('pqSearch').oninput = function(){clearTimeout(this._t);this._t=setTimeout(renderPqtlTable,300);};
+
+  renderPqtlTable();
+}
+
+function renderPqtlTable() {
+  if (!PQTL) return;
+  var fp = document.getElementById('pqFilterProtein').value;
+  var fo = document.getElementById('pqFilterOverlap').value;
+  var fd = document.getElementById('pqFilterDisease').value;
+  var fg = document.getElementById('pqFilterGlyco').value;
+  var ft = document.getElementById('pqFilterType').value;
+  var fs = document.getElementById('pqSearch').value.toLowerCase();
+
+  var filtered = PQTL.overlaps.filter(function(o) {
+    if (fp && o.protein_name !== fp) return false;
+    if (fo && o.overlap_type !== fo) return false;
+    if (fd === 'yes' && !o.is_disease_associated) return false;
+    if (fd === 'no' && o.is_disease_associated) return false;
+    if (fg === 'yes' && o.glycoeffects.length === 0) return false;
+    if (ft && o.variant_type !== ft) return false;
+    if (fs) {
+      var hay = (o.protein_name + ' ' + o.gene_name + ' ' + o.comment + ' ' + o.dbsnp + ' ' + o.diseases.map(function(d){return d.name;}).join(' ')).toLowerCase();
+      if (hay.indexOf(fs) < 0) return false;
+    }
+    return true;
+  });
+
+  document.getElementById('pqCount').textContent = filtered.length + ' variant-PTM overlaps (showing first 500)';
+
+  document.getElementById('pqTableBody').innerHTML = filtered.slice(0,500).map(function(o) {
+    var overlapCls = o.overlap_type === 'direct' ? 'tag-danger' : 'tag-ptm';
+    if (o.overlap_type === 'direct') overlapCls = 'tag-up';
+    var ptmTags = o.ptm_sites.map(function(p){return '<span class="tag tag-ptm">'+p.label+' ('+p.types.join(', ')+')</span>';}).join('');
+    var ptmTypes = [];
+    o.ptm_sites.forEach(function(p){p.types.forEach(function(t){if(ptmTypes.indexOf(t)<0)ptmTypes.push(t);});});
+    var disTags = o.diseases.map(function(d){return '<span class="tag tag-disease">'+d.name+'</span>';}).join('') || '<span style="color:var(--dim);font-size:.7rem">-</span>';
+    var glycoTags = o.glycoeffects.map(function(g){return '<span class="tag tag-glycoeffect">'+g+'</span>';}).join('') || '-';
+    var dbsnpLink = o.dbsnp ? '<a href="https://www.ncbi.nlm.nih.gov/snp/'+o.dbsnp+'" target="_blank" style="font-size:.72rem">'+o.dbsnp+'</a>' : '-';
+    var typeCls = o.variant_type === 'somatic' ? 'tag-disease' : o.variant_type === 'germline' ? 'tag-tissue' : 'tag-unknown';
+
+    return '<tr>' +
+      '<td style="font-size:.78rem"><a href="https://www.glygen.org/protein/'+o.protein_ac+'" target="_blank">'+o.gene_name+'</a></td>' +
+      '<td style="font-weight:600">'+o.snv_label+'</td>' +
+      '<td>'+o.ref_aa+' &rarr; '+o.alt_aa+'</td>' +
+      '<td><span class="tag '+(o.overlap_type==='direct'?'tag-up':'tag-ptm')+'">'+o.overlap_type+'</span></td>' +
+      '<td>'+(o.distance===0?'0 (on site)':o.distance+' aa')+'</td>' +
+      '<td>'+ptmTags+'</td>' +
+      '<td style="font-size:.72rem">'+ptmTypes.join(', ')+'</td>' +
+      '<td>'+glycoTags+'</td>' +
+      '<td>'+disTags+'</td>' +
+      '<td><span class="tag '+typeCls+'">'+o.variant_type+'</span></td>' +
+      '<td>'+dbsnpLink+'</td>' +
+      '</tr>';
+  }).join('');
+}
+
+// === PATHWAY / GO ENRICHMENT ===
+function initEnrichment() {
+  if (!ENRICH) return;
+  var sel = document.getElementById('enrCondition');
+  var conditions = Object.keys(ENRICH.enrichment).sort();
+  conditions.forEach(function(c) {
+    var d = ENRICH.enrichment[c];
+    var o = document.createElement('option');
+    o.value = c;
+    o.textContent = c + ' (' + d.affected_proteins + ' proteins)';
+    sel.appendChild(o);
+  });
+  sel.onchange = renderEnrichment;
+  document.getElementById('enrView').onchange = renderEnrichment;
+  document.getElementById('enrPval').onchange = renderEnrichment;
+  document.getElementById('enrSpecies').onchange = renderEnrichment;
+}
+
+function renderEnrichment() {
+  var cond = document.getElementById('enrCondition').value;
+  var view = document.getElementById('enrView').value;
+  var pCutoff = parseFloat(document.getElementById('enrPval').value);
+  var speciesFilter = document.getElementById('enrSpecies').value;
+
+  if (!cond || !ENRICH.enrichment[cond]) {
+    document.getElementById('enrSummary').innerHTML = '';
+    document.getElementById('enrProteins').innerHTML = '';
+    document.getElementById('enrResults').innerHTML = '<div style="color:var(--dim);text-align:center;padding:30px">Select a condition above</div>';
+    return;
+  }
+
+  var data = ENRICH.enrichment[cond];
+
+  // Summary
+  document.getElementById('enrSummary').innerHTML = '<div class="summary-row">' +
+    '<div class="stat-card"><div class="num">' + data.affected_proteins + '</div><div class="label">Affected Proteins</div></div>' +
+    '<div class="stat-card"><div class="num">' + data.go_enrichment.length + '</div><div class="label">GO Terms Tested</div></div>' +
+    '<div class="stat-card"><div class="num">' + data.go_enrichment.filter(function(g){return g.p_value < 0.05;}).length + '</div><div class="label">GO p&lt;0.05</div></div>' +
+    '<div class="stat-card"><div class="num">' + data.pathway_enrichment.length + '</div><div class="label">Pathways Tested</div></div>' +
+    '<div class="stat-card"><div class="num">' + data.pathway_enrichment.filter(function(p){return p.p_value < 0.05;}).length + '</div><div class="label">Pathways p&lt;0.05</div></div>' +
+    '<div class="stat-card"><div class="num">' + ENRICH.summary.background_size + '</div><div class="label">Background Size</div></div>' +
+    '</div>';
+
+  // Affected proteins - filter by species if selected
+  var filteredProts = data.protein_details;
+  if (speciesFilter) {
+    // Check which proteins have evidence in this species for this condition
+    var protsWithSpecies = new Set();
+    QUANT.hits.forEach(function(h) {
+      if (h.diseases.indexOf(cond) >= 0 && h.tissues && h.tissues.indexOf(speciesFilter) >= 0) {
+        protsWithSpecies.add(h.protein_ac);
+      }
+    });
+    filteredProts = filteredProts.filter(function(p) { return protsWithSpecies.has(p.ac); });
+  }
+  var protHtml = '<div style="margin-bottom:8px;font-size:.8rem;font-weight:600;color:var(--accent)">Proteins with PTM changes in ' + cond;
+  if (speciesFilter) protHtml += ' <span class="tag tag-tissue">' + speciesFilter + ' studies</span>';
+  protHtml += ' (' + filteredProts.length + '):</div>';
+  protHtml += '<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px">';
+  filteredProts.forEach(function(p) {
+    var dcls = p.direction === 'up' ? 'tag-up' : p.direction === 'down' ? 'tag-down' : 'tag-ptm';
+    protHtml += '<span class="tag ' + dcls + '" title="' + p.ac + ' - ' + p.hits + ' PTM hits, net direction: ' + p.direction + '">' + p.name.split('(')[0].trim() + ' (' + p.direction + ')</span>';
+  });
+  protHtml += '</div>';
+  if (speciesFilter) {
+    protHtml += '<div style="font-size:.72rem;color:var(--dim);margin-bottom:8px">Note: Enrichment statistics use the full protein set. Species filter shows which proteins have evidence in ' + speciesFilter + ' studies for this condition.</div>';
+  }
+  document.getElementById('enrProteins').innerHTML = protHtml;
+
+  // Select data based on view
+  var results = [];
+  if (view === 'pathway') {
+    results = data.pathway_enrichment;
+  } else if (view === 'go_all') {
+    results = data.go_enrichment;
+  } else {
+    var catMap = {'go_bp': 'biological_process', 'go_mf': 'molecular_function', 'go_cc': 'cellular_component'};
+    var cat = catMap[view] || '';
+    results = data.go_enrichment.filter(function(g) { return g.category === cat; });
+  }
+
+  // Filter by p-value
+  results = results.filter(function(r) { return r.p_value <= pCutoff; });
+
+  // Build results table + bar chart
+  var html = '';
+
+  // Bar chart for top enriched terms
+  var topN = results.slice(0, 15);
+  if (topN.length > 0) {
+    var maxFold = Math.max.apply(null, topN.map(function(r){return r.fold_enrichment;}));
+    if (maxFold < 1) maxFold = 1;
+    html += '<div class="chart-box" style="margin-bottom:16px"><h4>Top Enriched ' + (view === 'pathway' ? 'Pathways' : 'GO Terms') + ' (by fold enrichment)</h4>';
+    html += '<div class="bar-chart">';
+    topN.forEach(function(r) {
+      var pct = (r.fold_enrichment / maxFold) * 100;
+      var pCol = r.p_value < 0.05 ? 'var(--accent2)' : r.p_value < 0.1 ? 'var(--accent3)' : 'var(--dim)';
+      var label = r.name.length > 45 ? r.name.substring(0, 45) + '...' : r.name;
+      html += '<div class="bar-row"><div class="bar-label" title="' + r.name + '">' + label + '</div>';
+      html += '<div class="bar" style="width:' + Math.max(pct, 2) + '%;background:' + pCol + '"></div>';
+      html += '<div class="bar-value">' + r.fold_enrichment.toFixed(1) + 'x (p=' + r.p_value.toFixed(4) + ')</div></div>';
+    });
+    html += '</div></div>';
+  }
+
+  // Full results table
+  html += '<div style="font-size:.8rem;color:var(--dim);margin-bottom:6px">' + results.length + ' enriched terms (p &le; ' + pCutoff + ')</div>';
+  html += '<div class="table-wrap" style="max-height:500px;overflow-y:auto"><table>';
+  html += '<thead><tr><th>' + (view === 'pathway' ? 'Pathway' : 'GO Term') + '</th>';
+  if (view !== 'pathway') html += '<th>Category</th>';
+  if (view === 'pathway') html += '<th>Database</th>';
+  html += '<th>Overlap</th><th>Term Size</th><th>Fold Enrichment</th><th>P-value</th><th>Proteins</th></tr></thead><tbody>';
+
+  results.forEach(function(r) {
+    var pCol = r.p_value < 0.05 ? '#5ee8b7' : r.p_value < 0.1 ? '#f59e42' : '#888';
+    var protNames = r.proteins.map(function(ac) {
+      var pa = ENRICH.protein_annotations[ac];
+      return pa ? pa.name.split('(')[0].trim() : ac;
+    });
+    html += '<tr>';
+    html += '<td style="font-size:.78rem"><strong>' + r.name + '</strong><br><span style="color:var(--dim);font-size:.68rem">' + (r.id || '') + '</span></td>';
+    if (view !== 'pathway') {
+      var catLabel = (r.category || '').replace('_', ' ');
+      html += '<td><span class="tag tag-ptm">' + catLabel + '</span></td>';
+    }
+    if (view === 'pathway') {
+      html += '<td style="font-size:.72rem">' + (r.database || '') + '</td>';
+    }
+    html += '<td style="font-weight:600">' + r.overlap + ' / ' + r.set_size + '</td>';
+    html += '<td>' + r.term_size + ' / ' + r.bg_size + '</td>';
+    html += '<td style="font-weight:700;color:' + pCol + '">' + r.fold_enrichment.toFixed(2) + 'x</td>';
+    html += '<td style="color:' + pCol + '">' + r.p_value.toFixed(4) + '</td>';
+    html += '<td style="font-size:.72rem">' + protNames.map(function(n){return '<span class="tag tag-tissue">' + n + '</span>';}).join('') + '</td>';
+    html += '</tr>';
+  });
+  html += '</tbody></table></div>';
+
+  if (results.length === 0) {
+    html = '<div style="color:var(--dim);text-align:center;padding:30px">No enriched terms at p &le; ' + pCutoff + ' for this condition and view. Try a higher p-value cutoff or a different view.</div>';
+  }
+
+  document.getElementById('enrResults').innerHTML = html;
+}
+
+// === PTM TRACK VIEWER ===
+function initTrackViewer() {
+  if (!TRACKS) { console.error('TRACKS data not loaded'); return; }
+
+  // Pre-compute all conditions per protein
+  const proteinCondMap = {};
+  Object.values(TRACKS.proteins).forEach(p => {
+    const condCounts = {};
+    p.sites.forEach(s => {
+      Object.keys(s.scores || {}).forEach(c => { condCounts[c] = (condCounts[c] || 0) + 1; });
+      Object.keys(s.conditions || {}).forEach(c => { condCounts[c] = (condCounts[c] || 0) + 1; });
+    });
+    (p.conditions || []).forEach(c => { if (!condCounts[c]) condCounts[c] = 0; });
+    proteinCondMap[p.ac] = Object.entries(condCounts).sort((a,b) => b[1] - a[1]);
+  });
+
+  // Populate protein select
+  const protSel = document.getElementById('tvProtein');
+  protSel.innerHTML = '<option value="">-- Select Protein --</option>';
+  Object.values(TRACKS.proteins).sort((a, b) => b.total_sites - a.total_sites).forEach(p => {
+    const o = document.createElement('option');
+    o.value = p.ac;
+    o.textContent = p.name + ' (' + p.total_sites + ' sites)';
+    protSel.appendChild(o);
+  });
+
+  // When protein changes, rebuild condition dropdowns
+  function updateConditionDropdowns() {
+    const ac = protSel.value;
+    const condA = document.getElementById('tvCondA');
+    const condB = document.getElementById('tvCondB');
+    condA.innerHTML = '<option value="">-- Select Disease Condition --</option>';
+    condB.innerHTML = '<option value="">Healthy baseline (score=0)</option>';
+    if (!ac) return;
+    const condList = proteinCondMap[ac] || [];
+    condList.forEach(function(entry) {
+      var c = entry[0], cnt = entry[1];
+      var oA = document.createElement('option');
+      oA.value = c;
+      oA.textContent = c + ' (' + cnt + ' sites)';
+      condA.appendChild(oA);
+      var oB = document.createElement('option');
+      oB.value = c;
+      oB.textContent = c + ' (' + cnt + ' sites)';
+      condB.appendChild(oB);
+    });
+  }
+
+  protSel.onchange = updateConditionDropdowns;
+  document.getElementById('tvRender').onclick = renderTrackView;
+}
+
+function renderTrackView() {
+  const ac = document.getElementById('tvProtein').value;
+  const condA = document.getElementById('tvCondA').value;  // Disease
+  const condB = document.getElementById('tvCondB').value;  // Healthy/other (empty = baseline 0)
+  const ptmFilter = document.getElementById('tvPtmFilter').value;
+  const speciesFilter = document.getElementById('tvSpecies').value;
+  const container = document.getElementById('tvContainer');
+
+  if (!ac || !TRACKS.proteins[ac]) {
+    container.innerHTML = '<div style="text-align:center;color:var(--dim);padding:40px">Please select a protein</div>';
+    return;
+  }
+
+  const protein = TRACKS.proteins[ac];
+  let sites = protein.sites;
+  if (ptmFilter) {
+    sites = sites.filter(s => s.ptm_types.some(t => t.includes(ptmFilter)));
+  }
+  if (speciesFilter) {
+    sites = sites.filter(s => s.tissues && s.tissues.includes(speciesFilter));
+  }
+  if (sites.length === 0) {
+    container.innerHTML = '<div style="text-align:center;color:var(--dim);padding:40px">No PTM sites match the current filter</div>';
+    return;
+  }
+
+  // Compute scores -- site-specific only (no protein-level fallback, no conditions fallback)
+  // Only sites with actual NLP-extracted directional evidence get non-zero scores
+  const siteData = sites.map(site => {
+    var scoreA = (condA && site.scores && site.scores[condA]) ? site.scores[condA].score : 0;
+    var scoreB = (condB && site.scores && site.scores[condB]) ? site.scores[condB].score : 0;
+    var diff = scoreA - scoreB;
+    var hasEvidence = !!(scoreA !== 0 || scoreB !== 0);
+    return { ...site, scoreA, scoreB, diff, hasEvidence };
+  });
+
+  // Find max absolute score for scaling
+  const maxScore = Math.max(1, ...siteData.map(s => Math.max(Math.abs(s.scoreA), Math.abs(s.scoreB), Math.abs(s.diff))));
+
+  // Info line
+  const info = document.getElementById('tvInfo');
+  info.style.display = 'block';
+  const labelA = condA || 'No condition selected';
+  const labelB = condB || 'Healthy baseline';
+  info.innerHTML = `<strong>${protein.name}</strong> &middot; ${protein.protein_name} &middot; ${protein.length} aa &middot; ${sites.length} PTM sites &middot; Comparing: <span style="color:#ff9b9b">${labelA}</span> vs <span style="color:#5ee8b7">${labelB}</span>`;
+
+  // Get SNVs for this protein
+  const snvData = protein.snvs || [];
+
+  // SVG dimensions
+  const M = { top: 20, right: 40, bottom: 35, left: 100 };
+  const trackH = 90;
+  const snvTrackH = 50;  // shorter track for SNVs
+  const gap = 20;
+  const svgW = Math.max(900, Math.min(1400, protein.length * 1.2 + M.left + M.right));
+  const plotW = svgW - M.left - M.right;
+  const xScale = (pos) => M.left + (pos / protein.length) * plotW;
+  const barW = Math.max(2, Math.min(6, plotW / sites.length * 0.6));
+  const scoreScale = (s) => (s / maxScore) * (trackH * 0.42);
+
+  // 5 tracks: PTM sites, SNV variants, Condition A, Condition B, Difference
+  const svgH = M.top + trackH + gap + snvTrackH + gap + 3 * (trackH + gap) + M.bottom;
+
+  let svg = `<svg width="${svgW}" height="${svgH}" xmlns="http://www.w3.org/2000/svg" style="font-family:Inter,system-ui,sans-serif">`;
+
+  // Background
+  svg += `<rect width="${svgW}" height="${svgH}" fill="#0f1117"/>`;
+
+  function drawTrackBg(y, label, sublabel) {
+    svg += `<rect x="${M.left - 2}" y="${y - trackH + 2}" width="${plotW + 4}" height="${trackH - 4}" rx="4" fill="#13151e"/>`;
+    // Protein backbone bar
+    svg += `<rect x="${M.left}" y="${y - 3}" width="${plotW}" height="6" rx="2" fill="#1e2030" stroke="#2d3148" stroke-width="0.5"/>`;
+    // Ticks
+    const tickStep = Math.max(50, Math.round(protein.length / 15 / 50) * 50);
+    for (let p = 0; p <= protein.length; p += tickStep) {
+      const x = xScale(p);
+      svg += `<line x1="${x}" y1="${y + 2}" x2="${x}" y2="${y + 6}" stroke="#333" stroke-width="0.5"/>`;
+      svg += `<text x="${x}" y="${y + 14}" text-anchor="middle" fill="#555" font-size="8">${p}</text>`;
+    }
+    // Label
+    svg += `<text x="${M.left - 10}" y="${y - trackH/2 + 4}" text-anchor="end" fill="#8b90a5" font-size="11" font-weight="600">${label}</text>`;
+    if (sublabel) svg += `<text x="${M.left - 10}" y="${y - trackH/2 + 16}" text-anchor="end" fill="#555" font-size="8">${sublabel}</text>`;
+  }
+
+  function drawCenterLine(y) {
+    const cy = y - trackH / 2;
+    svg += `<line x1="${M.left}" y1="${cy}" x2="${M.left + plotW}" y2="${cy}" stroke="#2d3148" stroke-width="1" stroke-dasharray="3"/>`;
+    svg += `<text x="${M.left - 10}" y="${cy - trackH * 0.35}" text-anchor="end" fill="#5ee8b7" font-size="8">+${maxScore.toFixed(1)}</text>`;
+    svg += `<text x="${M.left - 10}" y="${cy + trackH * 0.35 + 4}" text-anchor="end" fill="#ff6b6b" font-size="8">-${maxScore.toFixed(1)}</text>`;
+    return cy;
+  }
+
+  function ptmColor(site) {
+    return site.ptm_types.some(t => t.includes('Phospho')) ? '#c084fc' : '#f59e42';
+  }
+
+  // ─── Track 1: All PTM sites (lollipop reference) ───
+  let tY = M.top + trackH;
+  drawTrackBg(tY, 'All PTM Sites', `${sites.length} sites`);
+  siteData.forEach((site, i) => {
+    const x = xScale(site.pos);
+    const c = ptmColor(site);
+    const h = 25 + (i % 4) * 10;
+    svg += `<line x1="${x}" y1="${tY}" x2="${x}" y2="${tY - h}" stroke="${c}" stroke-width="1.2" opacity="0.6"/>`;
+    svg += `<circle cx="${x}" cy="${tY - h}" r="${Math.max(2.5, barW * 0.7)}" fill="${c}" stroke="#0f1117" stroke-width="0.8" class="tv-site" data-idx="${i}" style="cursor:pointer"/>`;
+  });
+
+  // ─── Track 2: SNV Variants (diamond markers) ───
+  tY += snvTrackH + gap;
+  svg += `<rect x="${M.left - 2}" y="${tY - snvTrackH + 2}" width="${plotW + 4}" height="${snvTrackH - 4}" rx="4" fill="#13151e"/>`;
+  svg += `<rect x="${M.left}" y="${tY - 3}" width="${plotW}" height="6" rx="2" fill="#1e2030" stroke="#2d3148" stroke-width="0.5"/>`;
+  svg += `<text x="${M.left - 10}" y="${tY - snvTrackH/2 + 4}" text-anchor="end" fill="#8b90a5" font-size="10" font-weight="600">Variants</text>`;
+  svg += `<text x="${M.left - 10}" y="${tY - snvTrackH/2 + 14}" text-anchor="end" fill="#555" font-size="8">${snvData.length} SNVs</text>`;
+
+  snvData.forEach(function(snv, si) {
+    const x = xScale(snv.pos);
+    const isDirect = snv.ot === 'direct';
+    const hasDis = snv.dis && snv.dis.length > 0;
+    const hasGE = snv.ge && snv.ge.length > 0;
+    // Color: red = disease-associated at PTM site, orange = glycoeffect, blue = other
+    let color = '#555';
+    if (hasDis && isDirect) color = '#ff6b6b';
+    else if (hasDis) color = '#ff9b9b';
+    else if (hasGE && isDirect) color = '#f59e42';
+    else if (hasGE) color = '#f5c842';
+    else if (isDirect) color = '#6c8cff';
+    else color = '#4a5080';
+
+    const sz = isDirect ? 5 : 3.5;
+    const yOff = tY - 15 - (si % 3) * 8;
+    // Diamond shape
+    svg += `<polygon points="${x},${yOff - sz} ${x + sz},${yOff} ${x},${yOff + sz} ${x - sz},${yOff}" fill="${color}" stroke="#0f1117" stroke-width="0.6" opacity="0.85" class="tv-snv" data-si="${si}" style="cursor:pointer"/>`;
+    // Thin line connecting to protein bar
+    svg += `<line x1="${x}" y1="${yOff + sz}" x2="${x}" y2="${tY - 3}" stroke="${color}" stroke-width="0.5" opacity="0.3"/>`;
+  });
+
+  // ─── Track 3: Condition A (disease) logFC bars ───
+  tY += trackH + gap;
+  drawTrackBg(tY, labelA.length > 20 ? labelA.substring(0, 20) + '...' : labelA, 'Evidence score');
+  const cyA = drawCenterLine(tY);
+  siteData.forEach((site, i) => {
+    if (!site.scoreA) return;
+    const x = xScale(site.pos);
+    const h = Math.abs(scoreScale(site.scoreA));
+    const color = site.scoreA > 0 ? '#5ee8b7' : '#ff6b6b';
+    const yTop = site.scoreA > 0 ? cyA - h : cyA;
+    svg += `<rect x="${x - barW/2}" y="${yTop}" width="${barW}" height="${Math.max(h, 1)}" rx="1" fill="${color}" opacity="0.85" class="tv-site" data-idx="${i}" style="cursor:pointer"/>`;
+  });
+
+  // ─── Track 3: Condition B (healthy/other) logFC bars ───
+  tY += trackH + gap;
+  drawTrackBg(tY, labelB.length > 20 ? labelB.substring(0, 20) + '...' : labelB, condB ? 'Evidence score' : 'Baseline = 0');
+  const cyB = drawCenterLine(tY);
+  if (condB) {
+    siteData.forEach((site, i) => {
+      if (!site.scoreB) return;
+      const x = xScale(site.pos);
+      const h = Math.abs(scoreScale(site.scoreB));
+      const color = site.scoreB > 0 ? '#5ee8b7' : '#ff6b6b';
+      const yTop = site.scoreB > 0 ? cyB - h : cyB;
+      svg += `<rect x="${x - barW/2}" y="${yTop}" width="${barW}" height="${Math.max(h, 1)}" rx="1" fill="${color}" opacity="0.85" class="tv-site" data-idx="${i}" style="cursor:pointer"/>`;
+    });
+  } else {
+    svg += `<text x="${M.left + plotW/2}" y="${cyB + 4}" text-anchor="middle" fill="#444" font-size="10">Healthy baseline (all scores = 0)</text>`;
+  }
+
+  // ─── Track 4: Difference (A - B) -- STRICT scores only ───
+  // Only shows bars for sites with actual NLP-extracted directional evidence
+  // NOT the fallback condition counts -- prevents false positives vs baseline=0
+  tY += trackH + gap;
+  drawTrackBg(tY, 'Difference (strict)', `${labelA} vs ${labelB}`);
+  const cyD = drawCenterLine(tY);
+  var diffCount = 0;
+  siteData.forEach((site, i) => {
+    // Only show if this site has actual evidence
+    if (!site.hasEvidence) return;
+    if (!site.diff) return;
+    diffCount++;
+    const x = xScale(site.pos);
+    const h = Math.abs(scoreScale(site.diff));
+    const color = site.diff > 0 ? '#ff9b9b' : '#9bffb5';
+    const yTop = site.diff > 0 ? cyD - h : cyD;
+    svg += `<rect x="${x - barW/2}" y="${yTop}" width="${barW}" height="${Math.max(h, 1)}" rx="1" fill="${color}" opacity="0.9" class="tv-site" data-idx="${i}" style="cursor:pointer"/>`;
+    // Diamond marker for site-specific (not protein-level)
+    const sc = site.scores && site.scores[condA];
+    if (sc && !sc.protein_level) {
+      svg += `<polygon points="${x},${yTop - 5} ${x - 3},${yTop - 2} ${x},${yTop + 1} ${x + 3},${yTop - 2}" fill="${color}" opacity="0.7"/>`;
+    }
+  });
+  svg += `<text x="${M.left + plotW/2}" y="${cyD + trackH * 0.45}" text-anchor="middle" fill="#444" font-size="9">${diffCount} sites with strict evidence</text>`;
+
+  // Axis label
+  svg += `<text x="${M.left + plotW/2}" y="${svgH - 6}" text-anchor="middle" fill="#555" font-size="10">Protein position (residue number)</text>`;
+  // Difference track legend
+  svg += `<text x="${M.left + plotW + 6}" y="${cyD - 15}" fill="#ff9b9b" font-size="8">Higher in ${labelA.substring(0,12)}</text>`;
+  svg += `<text x="${M.left + plotW + 6}" y="${cyD + 20}" fill="#9bffb5" font-size="8">Higher in ${labelB.substring(0,12)}</text>`;
+
+  svg += '</svg>';
+  container.innerHTML = svg;
+
+  // Tooltips and click with score data
+  const tooltip = document.getElementById('tvTooltip');
+  const detailPanel = document.getElementById('tvSiteDetail');
+
+  // SNV tooltips
+  container.querySelectorAll('.tv-snv').forEach(function(el) {
+    var si = parseInt(el.dataset.si);
+    var snv = snvData[si];
+    if (!snv) return;
+    el.addEventListener('mouseenter', function(e) {
+      var html = '<div style="font-weight:600;margin-bottom:4px">' + (protein.gene || '') + ' variant ' + snv.lbl + '</div>';
+      html += '<div>Mutation: ' + snv.ref + ' &rarr; ' + snv.alt + ' at position ' + snv.pos + '</div>';
+      html += '<div>Overlap: <strong>' + snv.ot + '</strong>' + (snv.dist > 0 ? ' (' + snv.dist + ' aa from PTM site)' : ' (on PTM site)') + '</div>';
+      if (snv.ptm.length) html += '<div>Nearby PTM: ' + snv.ptm.map(function(p){return p.lbl;}).join(', ') + '</div>';
+      if (snv.ge.length) html += '<div>Glycoeffect: <span style="color:var(--accent3)">' + snv.ge.join(', ') + '</span></div>';
+      if (snv.dis.length) html += '<div>Disease: <span style="color:#ff9b9b">' + snv.dis.join(', ') + '</span></div>';
+      html += '<div>Type: ' + snv.vt + '</div>';
+      if (snv.dbsnp) html += '<div><a href="https://www.ncbi.nlm.nih.gov/snp/' + snv.dbsnp + '" target="_blank">' + snv.dbsnp + '</a></div>';
+      tooltip.innerHTML = html;
+      tooltip.style.display = 'block';
+      tooltip.style.left = (e.clientX + 14) + 'px';
+      tooltip.style.top = (e.clientY - 10) + 'px';
+    });
+    el.addEventListener('mousemove', function(e) {
+      tooltip.style.left = (e.clientX + 14) + 'px';
+      tooltip.style.top = (e.clientY - 10) + 'px';
+    });
+    el.addEventListener('mouseleave', function() { tooltip.style.display = 'none'; });
+
+    el.addEventListener('click', function() {
+      // Find nearby PTM sites for this SNV
+      var nearbyPtm = siteData.filter(function(s) { return Math.abs(s.pos - snv.pos) <= 5; });
+
+      var html = '<h4 style="color:var(--accent);margin-bottom:8px">Variant ' + snv.lbl + ' (' + snv.ref + '→' + snv.alt + ') at position ' + snv.pos + '</h4>';
+      html += '<div style="display:flex;gap:16px;flex-wrap:wrap;font-size:.8rem;margin-bottom:10px">';
+      html += '<div><strong>Overlap:</strong> ' + snv.ot + (snv.dist > 0 ? ' (' + snv.dist + ' aa from PTM)' : ' (on PTM site)') + '</div>';
+      html += '<div><strong>Type:</strong> ' + snv.vt + '</div>';
+      if (snv.dbsnp) html += '<div><a href="https://www.ncbi.nlm.nih.gov/snp/' + snv.dbsnp + '" target="_blank">' + snv.dbsnp + '</a></div>';
+      html += '</div>';
+
+      // SNV's own disease associations
+      if (snv.dis && snv.dis.length) {
+        html += '<div style="margin-bottom:10px"><strong style="font-size:.8rem">Variant disease associations (from GlyGen/BioMuta):</strong><br>';
+        html += snv.dis.map(function(d) { return '<span class="tag tag-disease">' + d + '</span>'; }).join(' ');
+        html += '</div>';
+      }
+      if (snv.ge && snv.ge.length) {
+        html += '<div style="margin-bottom:10px"><strong style="font-size:.8rem">Glycoeffect:</strong> ';
+        html += snv.ge.map(function(g) { return '<span class="tag tag-glycoeffect">' + g + '</span>'; }).join(' ');
+        html += '</div>';
+      }
+
+      // Now show all condition scores for nearby PTM sites
+      if (nearbyPtm.length > 0) {
+        html += '<div style="font-weight:600;font-size:.85rem;margin-bottom:6px;color:var(--accent)">PTM sites within ±5 residues — disease-specific changes:</div>';
+        nearbyPtm.forEach(function(site) {
+          html += '<div style="background:var(--card2);border-radius:8px;padding:10px;margin-bottom:8px">';
+          html += '<div style="font-weight:600;margin-bottom:4px">' + site.label + ' (' + site.residue + ') — ' + site.ptm_types.join(', ') + '</div>';
+
+          var allConds = Object.keys(site.scores || {});
+          if (allConds.length > 0) {
+            html += '<div class="table-wrap" style="max-height:250px;overflow-y:auto"><table>';
+            html += '<thead><tr><th>Disease / Condition</th><th>Score</th><th>Direction</th><th>Up</th><th>Down</th><th>Max FC</th><th>Source</th></tr></thead><tbody>';
+            allConds.sort().forEach(function(c) {
+              var sc = site.scores[c];
+              var col = sc.score > 0 ? '#5ee8b7' : sc.score < 0 ? '#ff6b6b' : '#888';
+              var dir = sc.score > 0 ? 'UP' : sc.score < 0 ? 'DOWN' : '-';
+              // Highlight if this disease also appears in the SNV's disease list
+              var snvMatch = snv.dis && snv.dis.indexOf(c) >= 0;
+              var rowStyle = snvMatch ? 'background:#2d1a2a;' : '';
+              html += '<tr style="' + rowStyle + '">';
+              html += '<td><span class="tag tag-disease">' + c + '</span>' + (snvMatch ? ' <span style="color:var(--accent3);font-size:.65rem">★ variant also disease-linked</span>' : '') + '</td>';
+              html += '<td style="color:' + col + ';font-weight:700">' + (sc.score > 0 ? '+' : '') + sc.score.toFixed(2) + '</td>';
+              html += '<td style="color:' + col + '">' + dir + '</td>';
+              html += '<td style="color:#5ee8b7">' + (sc.up || 0) + '</td>';
+              html += '<td style="color:#ff6b6b">' + (sc.down || 0) + '</td>';
+              html += '<td>' + (sc.max_fc != null ? sc.max_fc.toFixed(2) + 'x' : '-') + '</td>';
+              html += '<td style="font-size:.7rem">' + (sc.protein_level ? 'protein' : 'site') + '</td>';
+              html += '</tr>';
+            });
+            html += '</tbody></table></div>';
+
+            // Show evidence sentences
+            var evSentences = [];
+            allConds.forEach(function(c) {
+              (site.scores[c].evidence || []).forEach(function(e) {
+                evSentences.push({condition: c, sentence: e.sentence || '', pmid: e.pmid || ''});
+              });
+            });
+            if (evSentences.length) {
+              html += '<div style="margin-top:6px"><strong style="font-size:.78rem">Evidence:</strong></div>';
+              evSentences.forEach(function(e) {
+                html += '<div class="ann-sentence"><span class="tag tag-disease">' + e.condition + '</span> "' + e.sentence + '" ';
+                if (e.pmid) html += '<a href="https://pubmed.ncbi.nlm.nih.gov/' + e.pmid + '" target="_blank" style="font-size:.7rem">[PMID:' + e.pmid + ']</a>';
+                html += '</div>';
+              });
+            }
+          } else {
+            html += '<div style="color:var(--dim);font-size:.78rem">No disease-specific PTM change data for this site. This site has been observed but no directional evidence was extracted.</div>';
+          }
+          html += '</div>';
+        });
+      } else {
+        html += '<div style="color:var(--dim)">No PTM sites within ±5 residues of this variant.</div>';
+      }
+
+      html += '<div style="margin-top:8px"><a href="https://www.glygen.org/protein/' + ac + '" target="_blank">View on GlyGen</a></div>';
+      detailPanel.innerHTML = html;
+      detailPanel.style.display = 'block';
+      detailPanel.scrollIntoView({behavior: 'smooth', block: 'nearest'});
+    });
+  });
+
+  container.querySelectorAll('.tv-site').forEach(el => {
+    const idx = parseInt(el.dataset.idx);
+    const sd = siteData[idx];
+    if (!sd) return;
+
+    el.addEventListener('mouseenter', e => {
+      let html = `<div style="font-weight:600;margin-bottom:4px">${protein.gene || protein.name.split('(')[0]} - ${sd.label}</div>`;
+      html += `<div>Residue: ${sd.residue} at position ${sd.pos}</div>`;
+      html += `<div>PTM: ${sd.ptm_types.join(', ')}</div>`;
+      if (sd.glytoucan && sd.glytoucan.length) html += `<div>Glycans: ${sd.glytoucan.join(', ')}</div>`;
+      html += `<div style="margin-top:6px;padding-top:6px;border-top:1px solid #333">`;
+      if (condA) {
+        const colA = sd.scoreA > 0 ? '#5ee8b7' : sd.scoreA < 0 ? '#ff6b6b' : '#888';
+        html += `<div><span style="color:#ff9b9b">${labelA}:</span> score = <span style="color:${colA};font-weight:700">${sd.scoreA.toFixed(2)}</span></div>`;
+      }
+      if (condB) {
+        const colB = sd.scoreB > 0 ? '#5ee8b7' : sd.scoreB < 0 ? '#ff6b6b' : '#888';
+        html += `<div><span style="color:#9bffb5">${labelB}:</span> score = <span style="color:${colB};font-weight:700">${sd.scoreB.toFixed(2)}</span></div>`;
+      }
+      if (condA) {
+        const colD = sd.diff > 0 ? '#ff9b9b' : sd.diff < 0 ? '#9bffb5' : '#888';
+        html += `<div><strong>Diff (A-B):</strong> <span style="color:${colD};font-weight:700">${sd.diff > 0 ? '+' : ''}${sd.diff.toFixed(2)}</span></div>`;
+        // Evidence sentence
+        const sc = sd.scores && sd.scores[condA];
+        if (sc && sc.evidence && sc.evidence.length) {
+          html += `<div style="font-size:.68rem;color:#aaa;margin-top:3px">"${sc.evidence[0].sentence}"</div>`;
+          if (sc.protein_level) html += `<div style="font-size:.65rem;color:#666">(protein-level evidence)</div>`;
+        }
+      }
+      html += `</div>`;
+      html += `<div style="font-size:.65rem;color:#555;margin-top:4px">Click for full details</div>`;
+      tooltip.innerHTML = html;
+      tooltip.style.display = 'block';
+      tooltip.style.left = (e.clientX + 14) + 'px';
+      tooltip.style.top = (e.clientY - 10) + 'px';
+    });
+    el.addEventListener('mousemove', e => {
+      tooltip.style.left = (e.clientX + 14) + 'px';
+      tooltip.style.top = (e.clientY - 10) + 'px';
+    });
+    el.addEventListener('mouseleave', () => { tooltip.style.display = 'none'; });
+
+    el.addEventListener('click', function() {
+      var html = '<h4 style="color:var(--accent);margin-bottom:8px">';
+      html += (protein.gene || protein.name.split('(')[0]) + ' ' + sd.label + ' (pos ' + sd.pos + ', ' + sd.residue + ')</h4>';
+      html += '<div style="display:flex;gap:16px;flex-wrap:wrap;font-size:.8rem;margin-bottom:10px">';
+      html += '<div><strong>PTM:</strong> ' + sd.ptm_types.join(', ') + '</div>';
+      if (sd.glytoucan && sd.glytoucan.length) {
+        html += '<div><strong>Glycans:</strong> ' + sd.glytoucan.map(function(g) { return '<a href="https://glytoucan.org/Structures/Glycans/' + g + '" target="_blank">' + g + '</a>'; }).join(', ') + '</div>';
+      }
+      html += '</div>';
+
+      // Only show site-specific scores (no protein-level fallback, no conditions fallback)
+      var allConds = {};
+      var scoreKeys = Object.keys(sd.scores || {});
+      scoreKeys.forEach(function(c) {
+        allConds[c] = { score: sd.scores[c].score, up: sd.scores[c].up || 0, down: sd.scores[c].down || 0, max_fc: sd.scores[c].max_fc, evidence: sd.scores[c].evidence || [] };
+      });
+
+      var condList = Object.keys(allConds).sort();
+      // Score comparison table
+      html += '<div style="margin-bottom:10px;font-weight:600;font-size:.85rem">Evidence by Condition (' + condList.length + ' conditions)</div>';
+      html += '<div class="table-wrap" style="margin-bottom:10px;max-height:300px;overflow-y:auto"><table>';
+      html += '<thead><tr><th>Condition</th><th>Score</th><th>Direction</th><th>Up Evidence</th><th>Down Evidence</th><th>Max FC</th><th>Source</th></tr></thead><tbody>';
+      condList.forEach(function(c) {
+        var sc = allConds[c];
+        var col = sc.score > 0 ? '#5ee8b7' : sc.score < 0 ? '#ff6b6b' : '#888';
+        var highlight = (c === condA) ? 'background:#1a1020;' : (c === condB) ? 'background:#102010;' : '';
+        var dir = sc.score > 0 ? 'UP' : sc.score < 0 ? 'DOWN' : 'OBSERVED';
+        var dirCol = sc.score > 0 ? '#5ee8b7' : sc.score < 0 ? '#ff6b6b' : '#6c8cff';
+        html += '<tr style="' + highlight + '">';
+        html += '<td><span class="tag tag-disease">' + c + '</span></td>';
+        html += '<td style="color:' + col + ';font-weight:700;font-size:.9rem">' + (sc.score > 0 ? '+' : '') + sc.score.toFixed(2) + '</td>';
+        html += '<td style="color:' + dirCol + ';font-weight:600">' + dir + '</td>';
+        html += '<td style="color:#5ee8b7">' + sc.up + ' papers</td>';
+        html += '<td style="color:#ff6b6b">' + sc.down + ' papers</td>';
+        html += '<td>' + (sc.max_fc != null ? sc.max_fc.toFixed(2) + 'x' : '-') + '</td>';
+        html += '<td>' + (sc.protein_level ? '<span style="color:#666">protein-level</span>' : '<span style="color:var(--accent)">site-specific</span>') + '</td>';
+        html += '</tr>';
+      });
+      html += '</tbody></table></div>';
+
+      // Evidence sentences from all sources
+      var allEv = [];
+      condList.forEach(function(c) {
+        var sc = allConds[c];
+        (sc.evidence || []).forEach(function(e) {
+          allEv.push({pmid: e.pmid || e.p || '', sentence: e.sentence || e.tt || '', condition: c, score: e.score || 0});
+        });
+      });
+      if (allEv.length > 0) {
+        html += '<div style="font-weight:600;font-size:.85rem;margin-bottom:6px">Evidence Sentences (' + allEv.length + ')</div>';
+        allEv.forEach(function(e) {
+          html += '<div class="ann-sentence"><span class="tag tag-disease">' + e.condition + '</span> "' + e.sentence + '" ';
+          if (e.pmid) html += '<a href="https://pubmed.ncbi.nlm.nih.gov/' + e.pmid + '" target="_blank" style="font-size:.72rem">[PMID:' + e.pmid + ']</a>';
+          html += '</div>';
+        });
+      } else {
+        html += '<div style="color:var(--dim);font-size:.78rem">No extracted evidence sentences for this site. Evidence is inferred from protein-level annotations.</div>';
+      }
+
+      if (sd.tissues && sd.tissues.length) {
+        html += '<div style="margin-top:8px"><strong style="font-size:.8rem">Tissues:</strong> ' + sd.tissues.map(function(t) { return '<span class="tag tag-tissue">' + t + '</span>'; }).join(' ') + '</div>';
+      }
+      html += '<div style="margin-top:8px"><a href="https://www.glygen.org/protein/' + ac + '" target="_blank">View on GlyGen</a> &middot; <a href="https://api.glygen.org/site/detail/' + ac + '.' + sd.pos + '.' + sd.pos + '/" target="_blank">GlyGen Site API</a></div>';
+
+      detailPanel.innerHTML = html;
+      detailPanel.style.display = 'block';
+      detailPanel.scrollIntoView({behavior: 'smooth', block: 'nearest'});
+    });
+  });
+}
+
+// === CONDITION CHANGES TAB ===
+function populateCondFilters() {
+  if (!QUANT) return;
+  const proteins = new Set(), conditions = new Set(), ptms = new Set();
+  QUANT.hits.forEach(h => {
+    proteins.add(h.protein_name);
+    h.diseases.forEach(d => conditions.add(d));
+    h.ptm_types.forEach(p => ptms.add(p));
+  });
+  const fill = (id, items) => {
+    const sel = document.getElementById(id);
+    [...items].sort().forEach(i => { const o = document.createElement('option'); o.value = i; o.textContent = i; sel.appendChild(o); });
+  };
+  fill('ccFilterProtein', proteins);
+  fill('ccFilterCondition', conditions);
+  fill('ccFilterPtm', ptms);
+}
+
+function renderCondChanges() {
+  if (!QUANT) return;
+  const s = QUANT.summary;
+  document.getElementById('ccSummary').innerHTML = [
+    { num: s.total_hits, label: 'Total Hits' },
+    { num: s.curated_hits, label: 'Curated (High)' },
+    { num: s.abstract_hits, label: 'From Abstracts' },
+    { num: s.with_direction, label: 'With Direction' },
+    { num: s.with_quantitative, label: 'With Quant Value' },
+    { num: s.unique_conditions, label: 'Conditions' },
+  ].map(i => `<div class="stat-card"><div class="num">${i.num}</div><div class="label">${i.label}</div></div>`).join('');
+
+  // Chart: conditions with most hits
+  const condCounts = {};
+  QUANT.hits.forEach(h => h.diseases.forEach(d => { condCounts[d] = (condCounts[d] || 0) + 1; }));
+  const condSorted = Object.entries(condCounts).sort((a, b) => b[1] - a[1]).slice(0, 15);
+  const maxC = condSorted[0]?.[1] || 1;
+  document.getElementById('ccChartConditions').innerHTML = condSorted.map(([k, v]) =>
+    makeBar(k, v, maxC, '#ff9b9b')
+  ).join('');
+
+  // Chart: up vs down per condition (stacked-style)
+  const upDown = {};
+  QUANT.hits.forEach(h => h.diseases.forEach(d => {
+    if (!upDown[d]) upDown[d] = { up: 0, down: 0 };
+    upDown[d][h.direction]++;
+  }));
+  const udSorted = Object.entries(upDown).sort((a, b) => (b[1].up + b[1].down) - (a[1].up + a[1].down)).slice(0, 15);
+  const maxUD = Math.max(...udSorted.map(([, v]) => v.up + v.down), 1);
+  document.getElementById('ccChartUpDown').innerHTML = `<div style="font-size:.7rem;margin-bottom:6px;color:var(--dim)"><span style="color:var(--accent2)">&#9650; Up</span> &nbsp; <span style="color:var(--danger)">&#9660; Down</span></div>` +
+    udSorted.map(([cond, counts]) => {
+      const total = counts.up + counts.down;
+      const upPct = total > 0 ? (counts.up / total * 100) : 0;
+      const downPct = total > 0 ? (counts.down / total * 100) : 0;
+      const barW = total / maxUD * 100;
+      return `<div class="bar-row">
+        <div class="bar-label" title="${cond}">${cond}</div>
+        <div style="width:${barW}%;display:flex;height:18px;border-radius:3px;overflow:hidden">
+          <div style="width:${upPct}%;background:var(--accent2)"></div>
+          <div style="width:${downPct}%;background:var(--danger)"></div>
+        </div>
+        <div class="bar-value" style="min-width:50px">${counts.up}&#9650; ${counts.down}&#9660;</div>
+      </div>`;
+    }).join('');
+
+  // Chart: proteins
+  const protCounts = {};
+  QUANT.hits.forEach(h => { protCounts[h.protein_name] = (protCounts[h.protein_name] || 0) + 1; });
+  const protSorted = Object.entries(protCounts).sort((a, b) => b[1] - a[1]).slice(0, 15);
+  const maxP = protSorted[0]?.[1] || 1;
+  document.getElementById('ccChartProteins').innerHTML = protSorted.map(([k, v]) =>
+    makeBar(k.split('(')[0].trim(), v, maxP, 'var(--accent)')
+  ).join('');
+
+  // Chart: PTM types
+  const ptmCounts = {};
+  QUANT.hits.forEach(h => h.ptm_types.forEach(p => { ptmCounts[p] = (ptmCounts[p] || 0) + 1; }));
+  const ptmSorted = Object.entries(ptmCounts).sort((a, b) => b[1] - a[1]).slice(0, 12);
+  const maxPT = ptmSorted[0]?.[1] || 1;
+  document.getElementById('ccChartPtmTypes').innerHTML = ptmSorted.map(([k, v]) =>
+    makeBar(k, v, maxPT, 'var(--accent2)')
+  ).join('');
+
+  renderCondTable();
+}
+
+function renderCondTable() {
+  if (!QUANT) return;
+  const fp = document.getElementById('ccFilterProtein').value;
+  const fc = document.getElementById('ccFilterCondition').value;
+  const fd = document.getElementById('ccFilterDir').value;
+  const fptm = document.getElementById('ccFilterPtm').value;
+  const fconf = document.getElementById('ccFilterConf').value;
+  const fsp = document.getElementById('ccFilterSpecies').value;
+  const fs = document.getElementById('ccSearch').value.toLowerCase();
+
+  let filtered = QUANT.hits.filter(h => {
+    if (fp && h.protein_name !== fp) return false;
+    if (fc && !h.diseases.includes(fc)) return false;
+    if (fd && h.direction !== fd) return false;
+    if (fptm && !h.ptm_types.includes(fptm)) return false;
+    if (fconf && h.confidence !== fconf) return false;
+    if (fsp && !(h.tissues || []).includes(fsp)) return false;
+    if (fs && !h.sentence.toLowerCase().includes(fs) && !h.protein_name.toLowerCase().includes(fs)) return false;
+    return true;
+  });
+
+  document.getElementById('ccCount').textContent = `${filtered.length} condition-linked PTM changes (showing first 500)`;
+
+  document.getElementById('ccTableBody').innerHTML = filtered.slice(0, 500).map(h => {
+    const dirIcon = h.direction === 'up' ? '&#9650;' : '&#9660;';
+    const dirClass = h.direction === 'up' ? 'tag-up' : 'tag-down';
+    const quantStr = h.quantitative
+      ? `<span class="tag tag-glycoeffect">${h.quantitative.raw}</span>`
+      : '<span style="color:var(--dim);font-size:.7rem">-</span>';
+    const confClass = h.confidence === 'high' ? 'tag-up' : 'tag-ptm';
+
+    return `<tr>
+      <td style="font-size:.78rem"><a href="https://www.glygen.org/protein/${h.protein_ac}" target="_blank">${h.gene_name || h.protein_name.split('(')[0].trim()}</a></td>
+      <td>${h.sites.length ? tags(h.sites, 'tag-ptm') : '<span style="color:var(--dim);font-size:.7rem">protein-level</span>'}</td>
+      <td>${tags(h.ptm_types, 'tag-ptm')}</td>
+      <td><span class="tag ${dirClass}">${dirIcon} ${h.direction}</span></td>
+      <td>${tags(h.diseases, 'tag-disease')}</td>
+      <td>${tags(h.tissues.slice(0, 4), 'tag-tissue')}</td>
+      <td>${quantStr}</td>
+      <td><span class="tag ${confClass}">${h.confidence}</span></td>
+      <td style="font-size:.72rem;max-width:350px">${h.sentence}</td>
+      <td>${h.pmid ? `<a href="https://pubmed.ncbi.nlm.nih.gov/${h.pmid}" target="_blank" style="font-size:.7rem">${h.pmid}</a>` : ''}</td>
+    </tr>`;
+  }).join('');
+}
+
+function setupCondFilters() {
+  ['ccFilterProtein','ccFilterCondition','ccFilterDir','ccFilterPtm','ccFilterConf','ccFilterSpecies'].forEach(id =>
+    document.getElementById(id).addEventListener('change', renderCondTable));
+  document.getElementById('ccSearch').addEventListener('input', debounce(renderCondTable, 300));
+}
+
+// === SITE EVIDENCE TAB ===
+function populateSiteEvidenceFilters() {
+  if (!SITES) return;
+  const proteins = new Set();
+  const conditions = new Set();
+  const tissues = new Set();
+  const methods = new Set();
+  SITES.sites.forEach(s => {
+    proteins.add(s.display_name);
+    s.conditions.forEach(c => conditions.add(c));
+    s.tissues.forEach(t => tissues.add(t));
+    s.methods.forEach(m => methods.add(m));
+  });
+  const fill = (id, items) => {
+    const sel = document.getElementById(id);
+    [...items].sort().forEach(i => { const o = document.createElement('option'); o.value = i; o.textContent = i; sel.appendChild(o); });
+  };
+  fill('seFilterProtein', proteins);
+  fill('seFilterCondition', conditions);
+  fill('seFilterTissue', tissues);
+  fill('seFilterMethod', methods);
+}
+
+function renderSiteEvidence() {
+  if (!SITES) return;
+
+  // Summary cards for site evidence
+  const ss = SITES.summary;
+  const items = [
+    { num: ss.total_site_records.toLocaleString(), label: 'Site Records' },
+    { num: ss.sites_with_condition_context.toLocaleString(), label: 'With Condition' },
+    { num: ss.sites_with_tissue_context.toLocaleString(), label: 'With Tissue' },
+    { num: ss.unique_conditions, label: 'Unique Conditions' },
+    { num: ss.unique_tissues, label: 'Unique Tissues' },
+    { num: ss.unique_pmids_mined, label: 'Abstracts Mined' },
+  ];
+  document.getElementById('siteEvSummary').innerHTML = items.map(i =>
+    `<div class="stat-card"><div class="num">${i.num}</div><div class="label">${i.label}</div></div>`
+  ).join('');
+
+  renderSiteEvidenceTable();
+}
+
+function renderSiteEvidenceTable() {
+  if (!SITES) return;
+
+  const fp = document.getElementById('seFilterProtein').value;
+  const fptm = document.getElementById('seFilterPtm').value;
+  const fgt = document.getElementById('seFilterGlycoType').value;
+  const fc = document.getElementById('seFilterCondition').value;
+  const ft = document.getElementById('seFilterTissue').value;
+  const fm = document.getElementById('seFilterMethod').value;
+  const fsp = document.getElementById('seFilterSpecies').value;
+  const fs = document.getElementById('seSearch').value.toLowerCase();
+
+  let filtered = SITES.sites.filter(s => {
+    if (fp && s.display_name !== fp) return false;
+    if (fptm && s.ptm_type !== fptm) return false;
+    if (fgt && s.ptm_subtype !== fgt) return false;
+    if (fc && !s.conditions.includes(fc)) return false;
+    if (ft && !s.tissues.includes(ft)) return false;
+    if (fm && !s.methods.includes(fm)) return false;
+    if (fsp && !s.tissues.includes(fsp)) return false;
+    if (fs) {
+      const hay = `${s.display_name} ${s.site_lbl} ${s.residue} ${s.conditions.join(' ')} ${s.tissues.join(' ')} ${s.glytoucan_ac}`.toLowerCase();
+      if (!hay.includes(fs)) return false;
+    }
+    return true;
+  });
+
+  document.getElementById('seCount').textContent = `${filtered.length} site records (showing first 500)`;
+
+  const shown = filtered.slice(0, 500);
+  document.getElementById('seTableBody').innerHTML = shown.map(s => {
+    const condTags = s.conditions.map(c => {
+      const cls = c.includes('Normal') || c.includes('Control') || c.includes('Aging') ? 'tag-tissue' : 'tag-disease';
+      return `<span class="tag ${cls}">${c}</span>`;
+    }).join('');
+    const tisTags = s.tissues.map(t => `<span class="tag tag-tissue">${t}</span>`).join('');
+    const methTags = s.methods.slice(0, 3).map(m => `<span class="tag tag-ptm">${m}</span>`).join('');
+    const evLinks = s.evidence.slice(0, 3).map(e =>
+      `<a href="https://pubmed.ncbi.nlm.nih.gov/${e.p}" target="_blank" title="${e.tt}" style="font-size:.68rem">${e.p}</a>`
+    ).join(' ');
+
+    return `<tr>
+      <td><a href="https://www.glygen.org/protein/${s.uniprot_ac}" target="_blank" style="font-size:.78rem">${s.gene_name || s.display_name.split('(')[0].trim()}</a></td>
+      <td style="font-weight:600;font-size:.78rem">${s.site_lbl}</td>
+      <td>${s.residue || ''}</td>
+      <td><span class="tag ${s.ptm_type === 'Glycosylation' ? 'tag-ptm' : 'tag-glycoeffect'}">${s.ptm_type}</span></td>
+      <td style="font-size:.72rem">${s.ptm_subtype || '-'}</td>
+      <td>${s.glytoucan_ac ? `<a href="https://glytoucan.org/Structures/Glycans/${s.glytoucan_ac}" target="_blank" style="font-size:.7rem">${s.glytoucan_ac}</a>` : '-'}</td>
+      <td>${condTags || '<span style="color:var(--dim);font-size:.72rem">-</span>'}</td>
+      <td>${tisTags || '<span style="color:var(--dim);font-size:.72rem">-</span>'}</td>
+      <td>${methTags}</td>
+      <td>${evLinks}</td>
+    </tr>`;
+  }).join('');
+}
+
+function setupSiteEvidenceFilters() {
+  ['seFilterProtein','seFilterPtm','seFilterGlycoType','seFilterCondition','seFilterTissue','seFilterMethod','seFilterSpecies'].forEach(id =>
+    document.getElementById(id).addEventListener('change', renderSiteEvidenceTable));
+  document.getElementById('seSearch').addEventListener('input', debounce(renderSiteEvidenceTable, 300));
+}
+
+// Boot
+document.addEventListener('DOMContentLoaded', loadData);
+</script>
+</body>
+</html>
