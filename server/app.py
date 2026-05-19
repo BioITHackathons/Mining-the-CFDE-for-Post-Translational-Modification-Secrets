@@ -11,6 +11,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -30,6 +31,11 @@ JSON_ENDPOINTS = {
 }
 
 app = FastAPI(title="CFDE PTM Dashboard API")
+
+# gzip JSON payloads — /api/pqtl is ~45 MB raw / ~3 MB gzipped, /api/data
+# similar ratio. Without compression, slow upload links + cloudflared
+# combine to make the browser cancel mid-transfer.
+app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 # Allow the dashboard to be hosted on a separate origin (a static bucket,
 # Pages, localhost during dev) while the API runs on this server (typically
