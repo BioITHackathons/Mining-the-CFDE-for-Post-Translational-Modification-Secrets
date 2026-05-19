@@ -112,6 +112,20 @@ tr:hover td{background:rgba(108,140,255,.05)}
 </style>
 </head>
 <body>
+<!-- Full-screen loading overlay shown until the 6 startup fetches finish -->
+<div id="loadingOverlay" style="position:fixed;inset:0;background:#0f1117;z-index:1000;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:18px;font-family:Inter,system-ui,sans-serif;color:#e2e4ed">
+  <div style="width:48px;height:48px;border:3px solid #2d3148;border-top-color:#6c8cff;border-radius:50%;animation:ldSpin 0.9s linear infinite"></div>
+  <div style="font-size:1.05rem;font-weight:600">Loading PTM Disease-Tissue Explorer…</div>
+  <div id="loadingStatus" style="font-size:.8rem;color:#8b90a5">Connecting to API</div>
+  <div style="width:320px;height:6px;background:#1a1d27;border-radius:3px;overflow:hidden">
+    <div id="loadingBar" style="width:0%;height:100%;background:linear-gradient(90deg,#6c8cff,#5ee8b7);transition:width 0.3s ease"></div>
+  </div>
+  <div id="loadingDetails" style="font-size:.7rem;color:#555;max-width:380px;text-align:center;line-height:1.5"></div>
+</div>
+<style>
+  @keyframes ldSpin { to { transform: rotate(360deg); } }
+</style>
+
 <div class="container">
   <header>
     <h1>CFDE / GlyGen PTM Disease-Tissue Explorer</h1>
@@ -462,22 +476,55 @@ let ENRICH = null;
 let PQTL = null;
 
 async function loadData() {
-  var cb = '?v=' + Date.now();
-  var responses = await Promise.all([
-    fetch(apiUrl('api/data') + cb),
-    fetch(apiUrl('api/sites') + cb),
-    fetch(apiUrl('api/quantitative') + cb),
-    fetch(apiUrl('api/tracks') + cb),
-    fetch(apiUrl('api/enrichment') + cb),
-    fetch(apiUrl('api/pqtl') + cb),
-  ]);
-  DATA = await responses[0].json();
-  SITES = await responses[1].json();
-  QUANT = await responses[2].json();
-  TRACKS = await responses[3].json();
-  ENRICH = await responses[4].json();
-  PQTL = await responses[5].json();
-  init();
+  const cb = '?v=' + Date.now();
+  const tasks = [
+    { key: 'DATA',    label: 'proteins',           path: 'api/data' },
+    { key: 'SITES',   label: 'site evidence',      path: 'api/sites' },
+    { key: 'QUANT',   label: 'quantitative hits',  path: 'api/quantitative' },
+    { key: 'TRACKS',  label: 'track manifest',     path: 'api/tracks' },
+    { key: 'ENRICH',  label: 'enrichment',         path: 'api/enrichment' },
+    { key: 'PQTL',    label: 'variant overlaps',   path: 'api/pqtl' },
+  ];
+  const setStatus = (text) => { const el = document.getElementById('loadingStatus'); if (el) el.textContent = text; };
+  const setDetails = (text) => { const el = document.getElementById('loadingDetails'); if (el) el.textContent = text; };
+  const setBar = (pct) => { const el = document.getElementById('loadingBar'); if (el) el.style.width = pct + '%'; };
+
+  setStatus('Fetching ' + tasks.length + ' datasets in parallel…');
+  setDetails(API_BASE ? 'API: ' + API_BASE : 'API: same origin');
+
+  let done = 0;
+  const remaining = new Set(tasks.map(t => t.label));
+  const updateRemaining = () => setDetails('Still fetching: ' + [...remaining].join(', '));
+
+  const stash = {};
+  await Promise.all(tasks.map(async (t) => {
+    try {
+      const r = await fetch(apiUrl(t.path) + cb);
+      stash[t.key] = await r.json();
+    } catch (e) {
+      console.error('Failed to load ' + t.path, e);
+      stash[t.key] = null;
+    } finally {
+      done++;
+      remaining.delete(t.label);
+      setBar(Math.round(done * 100 / tasks.length));
+      setStatus('Loaded ' + done + ' of ' + tasks.length);
+      updateRemaining();
+    }
+  }));
+  DATA = stash.DATA; SITES = stash.SITES; QUANT = stash.QUANT;
+  TRACKS = stash.TRACKS; ENRICH = stash.ENRICH; PQTL = stash.PQTL;
+
+  setStatus('Rendering…');
+  setDetails('');
+  try { init(); } finally {
+    const overlay = document.getElementById('loadingOverlay');
+    if (overlay) {
+      overlay.style.transition = 'opacity 0.3s';
+      overlay.style.opacity = '0';
+      setTimeout(() => { overlay.style.display = 'none'; }, 320);
+    }
+  }
 }
 
 function init() {
@@ -1410,12 +1457,14 @@ function renderTrackView() {
     el.addEventListener('mouseenter', function(e) {
       var html = '<div style="font-weight:600;margin-bottom:4px">' + (protein.gene || '') + ' variant ' + snv.lbl + '</div>';
       html += '<div>Mutation: ' + snv.ref + ' &rarr; ' + snv.alt + ' at position ' + snv.pos + '</div>';
-      html += '<div>Overlap: <strong>' + snv.ot + '</strong>' + (snv.dist > 0 ? ' (' + snv.dist + ' aa from PTM site)' : ' (on PTM site)') + '</div>';
-      if (snv.ptm.length) html += '<div>Nearby PTM: ' + snv.ptm.map(function(p){return p.lbl;}).join(', ') + '</div>';
-      if (snv.ge.length) html += '<div>Glycoeffect: <span style="color:var(--accent3)">' + snv.ge.join(', ') + '</span></div>';
-      if (snv.dis.length) html += '<div>Disease: <span style="color:#ff9b9b">' + snv.dis.join(', ') + '</span></div>';
-      html += '<div>Type: ' + snv.vt + '</div>';
+      if (snv.ot) html += '<div>Overlap: <strong>' + snv.ot + '</strong>' + (snv.dist > 0 ? ' (' + snv.dist + ' aa from PTM site)' : ' (on PTM site)') + '</div>';
+      if (snv.ptm && snv.ptm.length) html += '<div>Nearby PTM: ' + snv.ptm.map(function(p){return p.lbl;}).join(', ') + '</div>';
+      if (snv.ge && snv.ge.length) html += '<div>Glycoeffect: <span style="color:var(--accent3)">' + snv.ge.join(', ') + '</span></div>';
+      if (snv.dis && snv.dis.length) html += '<div>Disease: <span style="color:#ff9b9b">' + snv.dis.join(', ') + '</span></div>';
+      if (snv.vt) html += '<div>Type: ' + snv.vt + '</div>';
+      if (snv.src && snv.src.length) html += '<div style="color:var(--dim);font-size:.7rem">Sources: ' + snv.src.join(', ') + '</div>';
       if (snv.dbsnp) html += '<div><a href="https://www.ncbi.nlm.nih.gov/snp/' + snv.dbsnp + '" target="_blank">' + snv.dbsnp + '</a></div>';
+      if (snv.cmt) html += '<div style="color:var(--dim);font-size:.7rem;margin-top:4px;max-width:320px">' + snv.cmt + '</div>';
       tooltip.innerHTML = html;
       tooltip.style.display = 'block';
       tooltip.style.left = (e.clientX + 14) + 'px';
@@ -1433,10 +1482,12 @@ function renderTrackView() {
 
       var html = '<h4 style="color:var(--accent);margin-bottom:8px">Variant ' + snv.lbl + ' (' + snv.ref + '→' + snv.alt + ') at position ' + snv.pos + '</h4>';
       html += '<div style="display:flex;gap:16px;flex-wrap:wrap;font-size:.8rem;margin-bottom:10px">';
-      html += '<div><strong>Overlap:</strong> ' + snv.ot + (snv.dist > 0 ? ' (' + snv.dist + ' aa from PTM)' : ' (on PTM site)') + '</div>';
-      html += '<div><strong>Type:</strong> ' + snv.vt + '</div>';
+      if (snv.ot) html += '<div><strong>Overlap:</strong> ' + snv.ot + (snv.dist > 0 ? ' (' + snv.dist + ' aa from PTM)' : ' (on PTM site)') + '</div>';
+      if (snv.vt) html += '<div><strong>Type:</strong> ' + snv.vt + '</div>';
+      if (snv.src && snv.src.length) html += '<div><strong>Sources:</strong> ' + snv.src.join(', ') + '</div>';
       if (snv.dbsnp) html += '<div><a href="https://www.ncbi.nlm.nih.gov/snp/' + snv.dbsnp + '" target="_blank">' + snv.dbsnp + '</a></div>';
       html += '</div>';
+      if (snv.cmt) html += '<div style="color:var(--dim);font-size:.78rem;margin-bottom:10px;font-style:italic">' + snv.cmt + '</div>';
 
       // SNV's own disease associations
       if (snv.dis && snv.dis.length) {

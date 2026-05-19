@@ -15,7 +15,7 @@ import sqlite3
 from functools import lru_cache
 from pathlib import Path
 
-from server import pubmed
+from server import glygen, pubmed
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DB_PATH = REPO_ROOT / "pipeline" / "ptm_disease.db"
@@ -585,23 +585,17 @@ def fetch_protein_quantitative(uniprot_ac: str) -> dict:
 
 
 def _protein_snvs(conn: sqlite3.Connection, uniprot_ac: str) -> list[dict]:
-    """All variants for this protein, with any PTM overlaps + protein diseases.
+    """All variants for this protein, each with its own BioMuta-style disease
+    list (not the protein-wide bag), variant type, PTM overlaps, and comment.
 
     Output shape matches the per-protein 'snvs' field used by index.html's
-    Track Viewer (compact keys: pos, lbl, ref, alt, ot, dist, ge, dis, vt, dbsnp, ptm).
+    Track Viewer (compact keys: pos, lbl, ref, alt, ot, dist, ge, dis, vt,
+    dbsnp, ptm, cmt).
     """
-    # Disease list (deduped); same approach as fetch_pqtl
-    diseases: list[str] = []
-    seen = set()
-    for row in conn.execute(
-        "SELECT DISTINCT d.name FROM protein_disease pd "
-        "JOIN disease d ON d.doid = pd.doid WHERE pd.uniprot_accession=? "
-        "ORDER BY d.name",
-        (uniprot_ac,),
-    ):
-        if row["name"] not in seen:
-            seen.add(row["name"])
-            diseases.append(row["name"])
+    # Per-variant disease annotations from GlyGen (cached to disk on first
+    # call per protein). Falls back to {} if the API is unreachable —
+    # variants then show no disease tags rather than wrong protein-level ones.
+    glygen_by_pos = glygen.snv_disease_map(uniprot_ac)
 
     overlap_rows = list(conn.execute("""
         SELECT v.variant_id, v.position, v.ref_residue, v.alt_residue,
@@ -620,16 +614,22 @@ def _protein_snvs(conn: sqlite3.Connection, uniprot_ac: str) -> list[dict]:
         vid = r["variant_id"]
         if vid not in by_variant:
             ref = r["ref_residue"] or ""
+            pos = r["position"]
+            ann = glygen_by_pos.get(pos, {})
             by_variant[vid] = {
-                "pos": r["position"],
-                "lbl": f"{ref}{r['position']}" if ref else str(r["position"]),
+                "pos": pos,
+                "lbl": f"{ref}{pos}" if ref else str(pos),
                 "ref": ref,
                 "alt": r["alt_residue"] or "",
                 "ot": None,
                 "dist": None,
                 "ge": [],
-                "dis": diseases[:6],  # short protein-level list per variant
-                "vt": "",
+                "dis": ann.get("diseases", []),
+                "vt": ann.get("variant_type", ""),
+                "cmt": ann.get("comment", ""),
+                "src": ann.get("sources", []),
+                "chr_id": ann.get("chr_id", ""),
+                "chr_pos": ann.get("chr_pos", ""),
                 "dbsnp": r["dbsnp_id"] or "",
                 "ptm": [],
             }
