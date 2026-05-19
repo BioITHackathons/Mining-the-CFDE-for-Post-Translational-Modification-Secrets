@@ -1,5 +1,33 @@
+# Python
 __pycache__/
 *.pyc
+*.pyo
+*.egg-info/
+
+# uv / venv
+.venv/
+.python-version
+
+# OS
 .DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Pipeline artifacts (rebuildable, can be large)
+pipeline/*.db
+pipeline/*.db-shm
+pipeline/*.db-wal
+pipeline/.cache/
+pipeline/.checkpoints/
+
+# Generic SQLite WAL/shared-memory files anywhere
 *.db-shm
 *.db-wal
+
+# Local server logs / scratch
+*.log
+*.tmp
+/tmp/

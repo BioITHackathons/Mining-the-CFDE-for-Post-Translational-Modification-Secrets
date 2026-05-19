@@ -4,6 +4,20 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>CFDE/GlyGen PTM Disease-Tissue Explorer</title>
+
+<!--
+  API endpoint configuration.
+  Local dev: leave API_BASE empty so the page hits the same origin (e.g., the
+  FastAPI server at http://127.0.0.1:8000 also serving this HTML).
+  Static hosting (GCS bucket / S3 / Pages): set API_BASE to your tunnel URL,
+  e.g. 'https://random-name.trycloudflare.com'. The server needs CORS
+  enabled so the browser will let the cross-origin fetch through.
+  Quick override without re-uploading: append ?api=https://your-tunnel to
+  the page URL — the param wins over the inline value.
+-->
+<script>
+  window.API_BASE = '';
+</script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 :root{--bg:#0f1117;--card:#1a1d27;--card2:#232738;--border:#2d3148;--text:#e2e4ed;--dim:#8b90a5;--accent:#6c8cff;--accent2:#5ee8b7;--accent3:#f59e42;--danger:#ff6b6b;--tag-bg:#23283a}
@@ -131,15 +145,21 @@ tr:hover td{background:rgba(108,140,255,.05)}
       <div style="font-size:.78rem;color:var(--dim)">Select a protein and condition to compare PTM landscape between disease and healthy/reference. Lollipop plots show PTM sites along the protein sequence. Sites are colored by evidence of change in the selected condition.</div>
     </div>
     <div class="filter-bar" style="background:var(--card);padding:12px;border-radius:10px;border:1px solid var(--border);margin-bottom:12px">
-      <div><div class="filter-label">Protein</div><select id="tvProtein" style="min-width:240px"></select></div>
+      <div><div class="filter-label">Protein</div><input list="tvProteinList" id="tvProtein" placeholder="Type gene or accession…" autocomplete="off" style="min-width:280px;background:var(--card2);border:1px solid var(--border);color:var(--fg);padding:6px 10px;border-radius:6px;font-size:.85rem"><datalist id="tvProteinList"></datalist></div>
       <div><div class="filter-label">Condition A (Disease)</div><select id="tvCondA" style="min-width:200px;border-color:var(--danger)"><option value="">Select protein first</option></select></div>
       <div><div class="filter-label">Condition B (Healthy / Other)</div><select id="tvCondB" style="min-width:200px;border-color:var(--accent2)"><option value="">Healthy baseline (score=0)</option></select></div>
       <div><div class="filter-label">PTM Filter</div><select id="tvPtmFilter"><option value="">All PTMs</option><option value="Glycosylation">Glycosylation only</option><option value="Phosphorylation">Phosphorylation only</option></select></div>
       <div><div class="filter-label">Species / Model</div><select id="tvSpecies"><option value="">All Species</option><option value="Human">Human</option><option value="Mouse">Mouse</option><option value="Rat">Rat</option><option value="In vivo">In vivo</option><option value="In vitro">In vitro</option></select></div>
       <div style="display:flex;align-items:flex-end"><button id="tvRender" style="background:var(--accent);color:#fff;border:none;border-radius:6px;padding:8px 18px;font-size:.8rem;font-weight:600;cursor:pointer">Compare Conditions</button></div>
     </div>
-    <div style="font-size:.72rem;color:var(--dim);margin-bottom:8px">
-      <strong>How scores work:</strong> Each literature report of a PTM increase = +1 (curated = +2). Decrease = -1 (curated = -2). Explicit fold-changes from papers are used when available. The score is the net evidence: positive means more evidence of increase, negative means decrease. Comparing two conditions shows the difference (A minus B).
+    <div style="font-size:.72rem;color:var(--dim);margin-bottom:8px;line-height:1.5">
+      <strong>How to read this chart.</strong> Five horizontal tracks, all sharing the protein's residue axis:
+      <span style="color:#c084fc">①&nbsp;PTM Sites</span> — every known modification (reference only).
+      <span style="color:#ff9b9b">②&nbsp;Variants</span> — every SNV; redder = disease-associated.
+      <span style="color:#5ee8b7">③&nbsp;Condition A</span> — green bar up = "increase in this disease per literature"; red bar down = "decrease". White diamond on a bar = the sentence named this exact site.
+      <span style="color:#9bffb5">④&nbsp;Condition B</span> — same encoding, or flat zero if you left it as healthy baseline.
+      <span style="color:#fff">⑤&nbsp;Difference (A − B)</span> — net shift between the two conditions.
+      <br><strong>Bars in tracks 3-5</strong> come from regex-mined PubMed sentences: <em>(direction word) × (disease) × (site or protein)</em>. Site-specific hits get full weight; protein-level hits (no site number in the sentence) are diluted across the protein's sites.
     </div>
 
     <div id="tvInfo" style="font-size:.78rem;color:var(--dim);margin-bottom:8px;display:none"></div>
@@ -221,7 +241,7 @@ tr:hover td{background:rgba(108,140,255,.05)}
       </div>
     </div>
     <div class="filter-bar">
-      <div><div class="filter-label">Protein</div><select id="ccFilterProtein"><option value="">All Proteins</option></select></div>
+      <div><div class="filter-label">Protein</div><input list="ccFilterProteinList" id="ccFilterProtein" placeholder="All proteins — type to search…" autocomplete="off" style="min-width:260px;background:var(--card2);border:1px solid var(--border);color:var(--fg);padding:6px 10px;border-radius:6px;font-size:.85rem"><datalist id="ccFilterProteinList"></datalist></div>
       <div><div class="filter-label">Condition</div><select id="ccFilterCondition"><option value="">All Conditions</option></select></div>
       <div><div class="filter-label">Direction</div><select id="ccFilterDir"><option value="">Any</option><option value="up">Up / Increased</option><option value="down">Down / Decreased</option></select></div>
       <div><div class="filter-label">PTM Type</div><select id="ccFilterPtm"><option value="">All PTMs</option></select></div>
@@ -255,7 +275,7 @@ tr:hover td{background:rgba(108,140,255,.05)}
     </div>
     <div class="summary-row" id="siteEvSummary"></div>
     <div class="filter-bar">
-      <div><div class="filter-label">Protein</div><select id="seFilterProtein"><option value="">All Proteins</option></select></div>
+      <div><div class="filter-label">Protein</div><input list="seFilterProteinList" id="seFilterProtein" placeholder="All proteins — type to search…" autocomplete="off" style="min-width:260px;background:var(--card2);border:1px solid var(--border);color:var(--fg);padding:6px 10px;border-radius:6px;font-size:.85rem"><datalist id="seFilterProteinList"></datalist></div>
       <div><div class="filter-label">PTM Type</div><select id="seFilterPtm"><option value="">All</option><option value="Glycosylation">Glycosylation</option><option value="Phosphorylation">Phosphorylation</option></select></div>
       <div><div class="filter-label">Glyco Type</div><select id="seFilterGlycoType"><option value="">All</option><option value="N-linked">N-linked</option><option value="O-linked">O-linked</option></select></div>
       <div><div class="filter-label">Condition</div><select id="seFilterCondition"><option value="">All Conditions</option></select></div>
@@ -422,6 +442,18 @@ tr:hover td{background:rgba(108,140,255,.05)}
 </div>
 
 <script>
+// Resolve the API endpoint once, in order: ?api= URL param,
+// window.API_BASE (set in <head>), then same-origin as the page.
+const API_BASE = (function() {
+  const p = new URLSearchParams(window.location.search).get('api');
+  const v = p || window.API_BASE || '';
+  return v.replace(/\/+$/, '');  // strip trailing slash
+})();
+function apiUrl(path) {
+  return API_BASE + '/' + String(path).replace(/^\/+/, '');
+}
+console.log('[dashboard] API_BASE =', API_BASE || '(same origin)');
+
 let DATA = null;
 let SITES = null;
 let QUANT = null;
@@ -432,12 +464,12 @@ let PQTL = null;
 async function loadData() {
   var cb = '?v=' + Date.now();
   var responses = await Promise.all([
-    fetch('data.json' + cb),
-    fetch('sites.json' + cb),
-    fetch('quantitative.json' + cb),
-    fetch('tracks.json' + cb),
-    fetch('enrichment.json' + cb),
-    fetch('pqtl.json' + cb),
+    fetch(apiUrl('api/data') + cb),
+    fetch(apiUrl('api/sites') + cb),
+    fetch(apiUrl('api/quantitative') + cb),
+    fetch(apiUrl('api/tracks') + cb),
+    fetch(apiUrl('api/enrichment') + cb),
+    fetch(apiUrl('api/pqtl') + cb),
   ]);
   DATA = await responses[0].json();
   SITES = await responses[1].json();
@@ -1040,59 +1072,101 @@ function renderEnrichment() {
 }
 
 // === PTM TRACK VIEWER ===
+// Cache of fully-loaded per-protein tracks (manifest entries have _lazy=true)
+const TRACK_CACHE = {};
+
+function computeCondMap(p) {
+  const condCounts = {};
+  (p.sites || []).forEach(s => {
+    Object.keys(s.scores || {}).forEach(c => { condCounts[c] = (condCounts[c] || 0) + 1; });
+    Object.keys(s.conditions || {}).forEach(c => { condCounts[c] = (condCounts[c] || 0) + 1; });
+  });
+  (p.conditions || []).forEach(c => { if (!condCounts[c]) condCounts[c] = 0; });
+  return Object.entries(condCounts).sort((a, b) => b[1] - a[1]);
+}
+
+async function ensureProteinTracks(ac) {
+  if (!ac) return null;
+  if (TRACK_CACHE[ac]) return TRACK_CACHE[ac];
+  const manifest = TRACKS.proteins[ac];
+  if (manifest && !manifest._lazy) {
+    TRACK_CACHE[ac] = manifest;
+    return manifest;
+  }
+  const r = await fetch(apiUrl('api/protein/' + encodeURIComponent(ac) + '/tracks'));
+  if (!r.ok) throw new Error('failed to fetch tracks for ' + ac + ' (' + r.status + ')');
+  const data = await r.json();
+  TRACK_CACHE[ac] = data;
+  TRACKS.proteins[ac] = data;  // upgrade manifest entry in-place
+  return data;
+}
+
 function initTrackViewer() {
   if (!TRACKS) { console.error('TRACKS data not loaded'); return; }
 
-  // Pre-compute all conditions per protein
-  const proteinCondMap = {};
-  Object.values(TRACKS.proteins).forEach(p => {
-    const condCounts = {};
-    p.sites.forEach(s => {
-      Object.keys(s.scores || {}).forEach(c => { condCounts[c] = (condCounts[c] || 0) + 1; });
-      Object.keys(s.conditions || {}).forEach(c => { condCounts[c] = (condCounts[c] || 0) + 1; });
-    });
-    (p.conditions || []).forEach(c => { if (!condCounts[c]) condCounts[c] = 0; });
-    proteinCondMap[p.ac] = Object.entries(condCounts).sort((a,b) => b[1] - a[1]);
-  });
-
-  // Populate protein select
+  // Populate the datalist with one option per protein, ranked by site count.
+  // The user types into the <input>; the datalist filters in-browser.
   const protSel = document.getElementById('tvProtein');
-  protSel.innerHTML = '<option value="">-- Select Protein --</option>';
+  const protList = document.getElementById('tvProteinList');
+  protList.innerHTML = '';
   Object.values(TRACKS.proteins).sort((a, b) => b.total_sites - a.total_sites).forEach(p => {
     const o = document.createElement('option');
-    o.value = p.ac;
-    o.textContent = p.name + ' (' + p.total_sites + ' sites)';
-    protSel.appendChild(o);
+    // value = the display name; we resolve back to ac via PROTEIN_DISPLAY_TO_AC.
+    // Appending " — N sites" makes it scannable but breaks resolution, so keep
+    // value clean and use the label attribute for descriptor where supported.
+    o.value = p.name;
+    o.label = p.total_sites + ' sites · ' + p.ac;
+    protList.appendChild(o);
   });
 
-  // When protein changes, rebuild condition dropdowns
-  function updateConditionDropdowns() {
-    const ac = protSel.value;
+  function fillConditionDropdowns(condList) {
     const condA = document.getElementById('tvCondA');
     const condB = document.getElementById('tvCondB');
     condA.innerHTML = '<option value="">-- Select Disease Condition --</option>';
     condB.innerHTML = '<option value="">Healthy baseline (score=0)</option>';
-    if (!ac) return;
-    const condList = proteinCondMap[ac] || [];
     condList.forEach(function(entry) {
       var c = entry[0], cnt = entry[1];
-      var oA = document.createElement('option');
-      oA.value = c;
-      oA.textContent = c + ' (' + cnt + ' sites)';
-      condA.appendChild(oA);
-      var oB = document.createElement('option');
-      oB.value = c;
-      oB.textContent = c + ' (' + cnt + ' sites)';
-      condB.appendChild(oB);
+      var oA = document.createElement('option'); oA.value = c; oA.textContent = c + ' (' + cnt + ' sites)'; condA.appendChild(oA);
+      var oB = document.createElement('option'); oB.value = c; oB.textContent = c + ' (' + cnt + ' sites)'; condB.appendChild(oB);
     });
   }
 
-  protSel.onchange = updateConditionDropdowns;
+  async function onProteinChange() {
+    const typed = protSel.value.trim();
+    fillConditionDropdowns([]);
+    delete protSel.dataset.ac;
+    if (!typed) return;
+    // Resolve to UniProt accession. Accept either an exact display_name
+    // ("MAPT (Microtubule-associated protein tau)") or a bare accession
+    // typed directly. PROTEIN_DISPLAY_TO_AC is built from DATA.
+    let ac = PROTEIN_DISPLAY_TO_AC[typed];
+    if (!ac && TRACKS.proteins[typed]) ac = typed;  // user typed an accession
+    if (!ac) return;  // not yet resolvable (still typing)
+    const renderBtn = document.getElementById('tvRender');
+    const origLabel = renderBtn.textContent;
+    renderBtn.disabled = true;
+    renderBtn.textContent = 'Loading evidence…';
+    try {
+      const p = await ensureProteinTracks(ac);
+      protSel.dataset.ac = ac;  // stash for renderTrackView
+      fillConditionDropdowns(computeCondMap(p));
+    } catch (e) {
+      console.error(e);
+      alert('Failed to load tracks for ' + ac + ': ' + e.message);
+    } finally {
+      renderBtn.disabled = false;
+      renderBtn.textContent = origLabel;
+    }
+  }
+
+  protSel.onchange = onProteinChange;
   document.getElementById('tvRender').onclick = renderTrackView;
 }
 
 function renderTrackView() {
-  const ac = document.getElementById('tvProtein').value;
+  // The input holds a display name; the change handler stashed the resolved AC.
+  const protInput = document.getElementById('tvProtein');
+  let ac = protInput.dataset.ac || PROTEIN_DISPLAY_TO_AC[protInput.value.trim()] || (TRACKS.proteins[protInput.value.trim()] ? protInput.value.trim() : '');
   const condA = document.getElementById('tvCondA').value;  // Disease
   const condB = document.getElementById('tvCondB').value;  // Healthy/other (empty = baseline 0)
   const ptmFilter = document.getElementById('tvPtmFilter').value;
@@ -1140,12 +1214,19 @@ function renderTrackView() {
   // Get SNVs for this protein
   const snvData = protein.snvs || [];
 
-  // SVG dimensions
-  const M = { top: 20, right: 40, bottom: 35, left: 100 };
+  // Helpful truncation that keeps the prefix readable
+  function truncLabel(s, n) { return s && s.length > n ? s.substring(0, n - 1) + '…' : (s || ''); }
+  const labelAShort = truncLabel(labelA, 26);
+  const labelBShort = truncLabel(labelB, 26);
+
+  // SVG dimensions — left has to fit "Difference (strict)" + a sublabel
+  // like "Disease vs Healthy baseline"; right has to fit the
+  // "Higher in <condition>" legend without clipping.
+  const M = { top: 20, right: 170, bottom: 35, left: 150 };
   const trackH = 90;
-  const snvTrackH = 50;  // shorter track for SNVs
+  const snvTrackH = 50;
   const gap = 20;
-  const svgW = Math.max(900, Math.min(1400, protein.length * 1.2 + M.left + M.right));
+  const svgW = Math.max(1000, Math.min(1600, protein.length * 1.2 + M.left + M.right));
   const plotW = svgW - M.left - M.right;
   const xScale = (pos) => M.left + (pos / protein.length) * plotW;
   const barW = Math.max(2, Math.min(6, plotW / sites.length * 0.6));
@@ -1229,7 +1310,9 @@ function renderTrackView() {
 
   // ─── Track 3: Condition A (disease) logFC bars ───
   tY += trackH + gap;
-  drawTrackBg(tY, labelA.length > 20 ? labelA.substring(0, 20) + '...' : labelA, 'Evidence score');
+  let nA = 0, nAstrict = 0;
+  siteData.forEach(s => { if (s.scoreA) { nA++; if (s.scores && s.scores[condA] && !s.scores[condA].protein_level) nAstrict++; } });
+  drawTrackBg(tY, labelAShort, condA ? (nA + ' scored sites · ' + nAstrict + ' site-specific') : 'No condition picked');
   const cyA = drawCenterLine(tY);
   siteData.forEach((site, i) => {
     if (!site.scoreA) return;
@@ -1238,11 +1321,23 @@ function renderTrackView() {
     const color = site.scoreA > 0 ? '#5ee8b7' : '#ff6b6b';
     const yTop = site.scoreA > 0 ? cyA - h : cyA;
     svg += `<rect x="${x - barW/2}" y="${yTop}" width="${barW}" height="${Math.max(h, 1)}" rx="1" fill="${color}" opacity="0.85" class="tv-site" data-idx="${i}" style="cursor:pointer"/>`;
+    // Highlight site-specific (non-fallback) hits with a small diamond on top
+    const sc = site.scores && site.scores[condA];
+    if (sc && !sc.protein_level) {
+      svg += `<polygon points="${x},${yTop - 6} ${x - 3},${yTop - 3} ${x},${yTop} ${x + 3},${yTop - 3}" fill="#fff" opacity="0.85"/>`;
+    }
   });
+  if (!condA) {
+    svg += `<text x="${M.left + plotW/2}" y="${cyA + 4}" text-anchor="middle" fill="#666" font-size="11">Pick a disease in the Condition dropdown to see evidence bars</text>`;
+  } else if (nA === 0) {
+    svg += `<text x="${M.left + plotW/2}" y="${cyA + 4}" text-anchor="middle" fill="#666" font-size="11">No PubMed-mined evidence for ${labelAShort} in this protein's sites</text>`;
+  }
 
-  // ─── Track 3: Condition B (healthy/other) logFC bars ───
+  // ─── Track 4: Condition B (healthy/other) logFC bars ───
   tY += trackH + gap;
-  drawTrackBg(tY, labelB.length > 20 ? labelB.substring(0, 20) + '...' : labelB, condB ? 'Evidence score' : 'Baseline = 0');
+  let nB = 0, nBstrict = 0;
+  siteData.forEach(s => { if (s.scoreB) { nB++; if (s.scores && s.scores[condB] && !s.scores[condB].protein_level) nBstrict++; } });
+  drawTrackBg(tY, labelBShort, condB ? (nB + ' scored sites · ' + nBstrict + ' site-specific') : 'Baseline = 0');
   const cyB = drawCenterLine(tY);
   if (condB) {
     siteData.forEach((site, i) => {
@@ -1252,9 +1347,13 @@ function renderTrackView() {
       const color = site.scoreB > 0 ? '#5ee8b7' : '#ff6b6b';
       const yTop = site.scoreB > 0 ? cyB - h : cyB;
       svg += `<rect x="${x - barW/2}" y="${yTop}" width="${barW}" height="${Math.max(h, 1)}" rx="1" fill="${color}" opacity="0.85" class="tv-site" data-idx="${i}" style="cursor:pointer"/>`;
+      const sc = site.scores && site.scores[condB];
+      if (sc && !sc.protein_level) {
+        svg += `<polygon points="${x},${yTop - 6} ${x - 3},${yTop - 3} ${x},${yTop} ${x + 3},${yTop - 3}" fill="#fff" opacity="0.85"/>`;
+      }
     });
   } else {
-    svg += `<text x="${M.left + plotW/2}" y="${cyB + 4}" text-anchor="middle" fill="#444" font-size="10">Healthy baseline (all scores = 0)</text>`;
+    svg += `<text x="${M.left + plotW/2}" y="${cyB + 4}" text-anchor="middle" fill="#666" font-size="11">Healthy baseline — all scores assumed 0</text>`;
   }
 
   // ─── Track 4: Difference (A - B) -- STRICT scores only ───
@@ -1280,13 +1379,21 @@ function renderTrackView() {
       svg += `<polygon points="${x},${yTop - 5} ${x - 3},${yTop - 2} ${x},${yTop + 1} ${x + 3},${yTop - 2}" fill="${color}" opacity="0.7"/>`;
     }
   });
-  svg += `<text x="${M.left + plotW/2}" y="${cyD + trackH * 0.45}" text-anchor="middle" fill="#444" font-size="9">${diffCount} sites with strict evidence</text>`;
+  if (diffCount === 0) {
+    svg += `<text x="${M.left + plotW/2}" y="${cyD + 4}" text-anchor="middle" fill="#666" font-size="11">${condA ? 'No site has site-specific direction evidence yet — try the Condition Changes tab to load more' : 'Pick a condition above'}</text>`;
+  } else {
+    svg += `<text x="${M.left + plotW/2}" y="${cyD + trackH * 0.45}" text-anchor="middle" fill="#666" font-size="9">${diffCount} sites with strict site-specific evidence (vs ${nA} with any score in track 3)</text>`;
+  }
 
   // Axis label
   svg += `<text x="${M.left + plotW/2}" y="${svgH - 6}" text-anchor="middle" fill="#555" font-size="10">Protein position (residue number)</text>`;
-  // Difference track legend
-  svg += `<text x="${M.left + plotW + 6}" y="${cyD - 15}" fill="#ff9b9b" font-size="8">Higher in ${labelA.substring(0,12)}</text>`;
-  svg += `<text x="${M.left + plotW + 6}" y="${cyD + 20}" fill="#9bffb5" font-size="8">Higher in ${labelB.substring(0,12)}</text>`;
+
+  // Right-side legend for the Difference track
+  const legendX = M.left + plotW + 8;
+  svg += `<text x="${legendX}" y="${cyD - 18}" fill="#ff9b9b" font-size="9">▲ Higher in</text>`;
+  svg += `<text x="${legendX}" y="${cyD - 6}" fill="#ff9b9b" font-size="9">${truncLabel(labelA, 20)}</text>`;
+  svg += `<text x="${legendX}" y="${cyD + 16}" fill="#9bffb5" font-size="9">▼ Higher in</text>`;
+  svg += `<text x="${legendX}" y="${cyD + 28}" fill="#9bffb5" font-size="9">${truncLabel(labelB, 20)}</text>`;
 
   svg += '</svg>';
   container.innerHTML = svg;
@@ -1518,21 +1625,146 @@ function renderTrackView() {
 }
 
 // === CONDITION CHANGES TAB ===
+
+// Display name -> uniprot_ac for fast resolution when the user picks a
+// protein from a filter dropdown. Built from DATA at populate time.
+const PROTEIN_DISPLAY_TO_AC = {};
+
+// Track which proteins we've already fetched live data for, per tab.
+const ccLoadedProteins = new Set();
+const seLoadedProteins = new Set();
+
+function buildDisplayMap() {
+  if (!DATA) return;
+  Object.keys(PROTEIN_DISPLAY_TO_AC).forEach(k => delete PROTEIN_DISPLAY_TO_AC[k]);
+  DATA.proteins.forEach(p => {
+    if (p.display_name) PROTEIN_DISPLAY_TO_AC[p.display_name] = p.uniprot_ac;
+  });
+}
+
+function recomputeQuantSummary() {
+  if (!QUANT) return;
+  const hits = QUANT.hits || [];
+  const conds = new Set(), pmids = new Set(), proteins = new Set();
+  let curated = 0, abstractH = 0, withDir = 0, withQuant = 0;
+  hits.forEach(h => {
+    if (h.confidence === 'high') curated++; else abstractH++;
+    if (h.direction === 'up' || h.direction === 'down') withDir++;
+    if (h.quantitative) withQuant++;
+    (h.diseases || []).forEach(d => conds.add(d));
+    if (h.pmid) pmids.add(h.pmid);
+    if (h.protein_ac) proteins.add(h.protein_ac);
+  });
+  QUANT.summary = {
+    total_hits: hits.length,
+    curated_hits: curated,
+    abstract_hits: abstractH,
+    with_direction: withDir,
+    with_quantitative: withQuant,
+    unique_conditions: conds.size,
+    proteins_covered: proteins.size,
+    pmids_mined: pmids.size,
+  };
+}
+
+function recomputeSitesSummary() {
+  if (!SITES) return;
+  const sites = SITES.sites || [];
+  const conds = new Set(), tissues = new Set(), pmids = new Set(), proteins = new Set();
+  let withCond = 0, withTissue = 0;
+  sites.forEach(s => {
+    if ((s.conditions || []).length) withCond++;
+    if ((s.tissues || []).length) withTissue++;
+    (s.conditions || []).forEach(c => conds.add(c));
+    (s.tissues || []).forEach(t => tissues.add(t));
+    (s.pmids || []).forEach(p => pmids.add(p));
+    if (s.uniprot_ac) proteins.add(s.uniprot_ac);
+  });
+  SITES.summary = {
+    total_site_records: sites.length,
+    sites_with_condition_context: withCond,
+    sites_with_tissue_context: withTissue,
+    unique_conditions: conds.size,
+    unique_tissues: tissues.size,
+    unique_pmids_mined: pmids.size,
+    proteins_covered: proteins.size,
+  };
+}
+
+async function ensureProteinHits(displayName) {
+  if (!displayName || ccLoadedProteins.has(displayName)) return false;
+  const ac = PROTEIN_DISPLAY_TO_AC[displayName];
+  if (!ac) { ccLoadedProteins.add(displayName); return false; }
+  let merged = false;
+  try {
+    const r = await fetch(apiUrl('api/protein/' + encodeURIComponent(ac) + '/quantitative'));
+    if (!r.ok) throw new Error('quantitative fetch failed: ' + r.status);
+    const data = await r.json();
+    if (data.hits && data.hits.length) {
+      const existing = new Set(QUANT.hits.map(h => h.pmid + '|' + h.protein_ac + '|' + h.sentence.slice(0, 80)));
+      data.hits.forEach(h => {
+        const key = (h.pmid || '') + '|' + h.protein_ac + '|' + h.sentence.slice(0, 80);
+        if (!existing.has(key)) { QUANT.hits.push(h); merged = true; }
+      });
+    }
+  } catch (e) {
+    console.warn('No live quantitative hits for ' + displayName + ':', e.message);
+  }
+  ccLoadedProteins.add(displayName);
+  if (merged) recomputeQuantSummary();
+  return merged;
+}
+
+async function ensureProteinSiteRows(displayName) {
+  if (!displayName || seLoadedProteins.has(displayName)) return false;
+  const ac = PROTEIN_DISPLAY_TO_AC[displayName];
+  if (!ac) { seLoadedProteins.add(displayName); return false; }
+  let merged = false;
+  try {
+    const r = await fetch(apiUrl('api/protein/' + encodeURIComponent(ac) + '/evidence'));
+    if (!r.ok) throw new Error('evidence fetch failed: ' + r.status);
+    const data = await r.json();
+    if (data.sites && data.sites.length) {
+      const existing = new Set(SITES.sites.map(s => s.uniprot_ac + '|' + s.start_pos + '|' + s.ptm_type));
+      data.sites.forEach(s => {
+        const key = s.uniprot_ac + '|' + s.start_pos + '|' + s.ptm_type;
+        if (!existing.has(key)) { SITES.sites.push(s); merged = true; }
+      });
+    }
+  } catch (e) {
+    console.warn('No live site evidence for ' + displayName + ':', e.message);
+  }
+  seLoadedProteins.add(displayName);
+  if (merged) recomputeSitesSummary();
+  return merged;
+}
+
 function populateCondFilters() {
   if (!QUANT) return;
-  const proteins = new Set(), conditions = new Set(), ptms = new Set();
+  buildDisplayMap();
+  // Proteins: prefer the full DATA universe; fall back to QUANT hits if DATA missing
+  const proteins = new Set();
+  if (DATA) {
+    DATA.proteins.forEach(p => { if (p.display_name) proteins.add(p.display_name); });
+  } else {
+    QUANT.hits.forEach(h => proteins.add(h.protein_name));
+  }
+  const conditions = new Set(), ptms = new Set();
   QUANT.hits.forEach(h => {
-    proteins.add(h.protein_name);
     h.diseases.forEach(d => conditions.add(d));
     h.ptm_types.forEach(p => ptms.add(p));
   });
   const fill = (id, items) => {
     const sel = document.getElementById(id);
+    if (!sel) return;
+    sel.innerHTML = sel.tagName === 'SELECT' ? sel.innerHTML : '';
     [...items].sort().forEach(i => { const o = document.createElement('option'); o.value = i; o.textContent = i; sel.appendChild(o); });
   };
-  fill('ccFilterProtein', proteins);
+  fill('ccFilterProteinList', proteins);   // datalist target for searchable input
   fill('ccFilterCondition', conditions);
   fill('ccFilterPtm', ptms);
+  // Mark curated proteins as already loaded so we don't refetch them
+  QUANT.hits.forEach(h => ccLoadedProteins.add(h.protein_name));
 }
 
 function renderCondChanges() {
@@ -1648,32 +1880,50 @@ function renderCondTable() {
 }
 
 function setupCondFilters() {
-  ['ccFilterProtein','ccFilterCondition','ccFilterDir','ccFilterPtm','ccFilterConf','ccFilterSpecies'].forEach(id =>
+  ['ccFilterCondition','ccFilterDir','ccFilterPtm','ccFilterConf','ccFilterSpecies'].forEach(id =>
     document.getElementById(id).addEventListener('change', renderCondTable));
+  // Protein change may need a live fetch before rendering
+  document.getElementById('ccFilterProtein').addEventListener('change', async function() {
+    const name = this.value;
+    if (!name) { renderCondTable(); return; }
+    const countEl = document.getElementById('ccCount');
+    countEl.textContent = 'Loading live PubMed mining for ' + name.split('(')[0].trim() + '…';
+    const merged = await ensureProteinHits(name);
+    if (merged) renderCondChanges();   // refresh cards + charts + table
+    else renderCondTable();
+  });
   document.getElementById('ccSearch').addEventListener('input', debounce(renderCondTable, 300));
 }
 
 // === SITE EVIDENCE TAB ===
 function populateSiteEvidenceFilters() {
   if (!SITES) return;
+  buildDisplayMap();
+  // Proteins: full DATA universe; everything else from current SITES rows.
   const proteins = new Set();
-  const conditions = new Set();
-  const tissues = new Set();
-  const methods = new Set();
+  if (DATA) {
+    DATA.proteins.forEach(p => { if (p.display_name) proteins.add(p.display_name); });
+  } else {
+    SITES.sites.forEach(s => proteins.add(s.display_name));
+  }
+  const conditions = new Set(), tissues = new Set(), methods = new Set();
   SITES.sites.forEach(s => {
-    proteins.add(s.display_name);
     s.conditions.forEach(c => conditions.add(c));
     s.tissues.forEach(t => tissues.add(t));
     s.methods.forEach(m => methods.add(m));
   });
   const fill = (id, items) => {
     const sel = document.getElementById(id);
+    if (!sel) return;
+    sel.innerHTML = sel.tagName === 'SELECT' ? sel.innerHTML : '';
     [...items].sort().forEach(i => { const o = document.createElement('option'); o.value = i; o.textContent = i; sel.appendChild(o); });
   };
-  fill('seFilterProtein', proteins);
+  fill('seFilterProteinList', proteins);   // datalist target for searchable input
   fill('seFilterCondition', conditions);
   fill('seFilterTissue', tissues);
   fill('seFilterMethod', methods);
+  // Mark curated proteins as already loaded
+  SITES.sites.forEach(s => seLoadedProteins.add(s.display_name));
 }
 
 function renderSiteEvidence() {
@@ -1753,8 +2003,18 @@ function renderSiteEvidenceTable() {
 }
 
 function setupSiteEvidenceFilters() {
-  ['seFilterProtein','seFilterPtm','seFilterGlycoType','seFilterCondition','seFilterTissue','seFilterMethod','seFilterSpecies'].forEach(id =>
+  ['seFilterPtm','seFilterGlycoType','seFilterCondition','seFilterTissue','seFilterMethod','seFilterSpecies'].forEach(id =>
     document.getElementById(id).addEventListener('change', renderSiteEvidenceTable));
+  // Protein change may need a live fetch before rendering
+  document.getElementById('seFilterProtein').addEventListener('change', async function() {
+    const name = this.value;
+    if (!name) { renderSiteEvidenceTable(); return; }
+    const countEl = document.getElementById('seCount');
+    countEl.textContent = 'Loading live PubMed mining for ' + name.split('(')[0].trim() + '…';
+    const merged = await ensureProteinSiteRows(name);
+    if (merged) renderSiteEvidence();    // refresh cards + table
+    else renderSiteEvidenceTable();
+  });
   document.getElementById('seSearch').addEventListener('input', debounce(renderSiteEvidenceTable, 300));
 }
 

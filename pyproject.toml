@@ -1,0 +1,15 @@
+[project]
+name = "cfde-ptm"
+version = "0.1.0"
+description = "CFDE PTM-disease pipeline and Datasette server"
+requires-python = ">=3.12"
+dependencies = [
+    "requests>=2.32",
+    "pyreadr>=0.5",
+    "datasette>=0.65",
+    "fastapi>=0.115",
+    "uvicorn>=0.30",
+]
+
+[tool.uv]
+package = false
